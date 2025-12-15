@@ -1,177 +1,66 @@
-# IQ-Omicron  
-**A research-grade, open, psychometric assessment engine for adaptive cognitive measurement**
+# IQ-Omicron (Non-Clinical, Client-Side)
+
+World-class engineering meets careful psychometrics for a **non-clinical, IQ-style** adaptive assessment. No servers, no tracking: everything runs in the browser. **Not WAIS / Stanford–Binet / clinical**; do not use for diagnosis or high-stakes decisions.
 
 ---
 
-## Overview
+## What It Is
+- Adaptive (CAT) multi-domain assessment using IRT (2PL/3PL) with SEM-based stopping and exposure controls.
+- Clear results: IQ-style estimate + 95% CI + percentile for each domain and composite.
+- Large synthetic item banks (fluid, verbal, quantitative, spatial, working memory, speed) from IQ-Delta.
+- Psychometric core, research exports, integrity scaffolding from IQ-Gamma.
+- Static, GitHub Pages–ready; all computation and storage stay local.
 
-**IQ-Omicron** is an open, modular, research-oriented cognitive assessment engine designed around modern psychometric principles. It provides a transparent, extensible framework for building, simulating, and analyzing adaptive tests using Item Response Theory (IRT), computerized adaptive testing (CAT), norming pipelines, and fairness analysis scaffolding.
-
-The project is intentionally **method-forward rather than product-forward**. IQ-Omicron is not a consumer test and does not attempt to replicate or replace proprietary intelligence scales. Instead, it offers a clean, inspectable implementation suitable for:
-
-- Psychometric research and experimentation  
-- Educational measurement and assessment prototyping  
-- Developers building adaptive testing systems  
-- Methodological learning and validation exercises  
-
-Core design goals include **separation of concerns**, **reproducibility**, and **auditability** of measurement logic.
-
----
-
-## Core Features
-
-- Item Response Theory–based scoring (2PL-centric with extensible hooks)
-- Computerized Adaptive Testing (CAT) engine
-- Modular, domain-specific item banks (verbal, quantitative, spatial, working memory, etc.)
-- Bayesian ability (θ) estimation pipelines (EAP-style estimation)
-- Deterministic and stochastic adaptive routing
-- Item exposure tracking and control scaffolding
-- Norming and score transformation infrastructure
-- Differential Item Functioning (DIF) analysis hooks
-- Clear separation between measurement engine and UI/rendering
-- Research-grade data export and reproducibility focus
-
----
-
-## Repository Structure
-
+## Architecture
 ```
 IQ-Omicron/
-│
-├── engine/              # Core psychometric logic
-│   ├── cat.js           # Adaptive routing and item selection
-│   ├── irt.js           # IRT model utilities
-│   ├── eap.js           # Ability estimation
-│   ├── norms.js         # Norm score transformations
-│   ├── exposure.js      # Item exposure tracking
-│   ├── scoring.js       # Raw and scaled scoring
-│   └── utils.js         # Shared engine utilities
-│
-├── items/               # Item banks by cognitive domain
-│   ├── verbal.js
-│   ├── quant.js
-│   ├── spatial.js
-│   ├── working_memory.js
-│   └── common.js
-│
-├── data/                # Static data and configuration
-│   ├── itembank.json
-│   └── forms.json
-│
-├── research/            # Calibration & analysis scripts
-│   ├── calibrate_2pl.py
-│   ├── dif_logistic.py
-│   ├── dif_mh.py
-│   ├── make_norm_pack.py
-│   └── utils_io.py
-│
-├── render/              # Presentation layer
-│   ├── itemRenderer.js
-│   └── symbols.js
-│
-├── app.js               # Application entry point
-├── index.html           # Demo UI shell
-├── styles.css           # UI styling
-└── README.md
+├── index.html, styles.css         # UI shell (static)
+├── src/
+│   ├── app.js                     # UI controller (single runtime path)
+│   ├── plan.js                    # Mode builder (Standard/Quick) + item banks
+│   ├── items/                     # IQ-Delta item generators (original content)
+│   ├── core/
+│   │   ├── index.js               # Unified API: runAssessment(config, io)
+│   │   ├── data/buildItemBank.js  # Adapter: Delta items -> Gamma schema
+│   │   ├── data/forms.json        # Forms/anchors (for research)
+│   │   ├── norms.js               # Baseline/custom norm pack helpers
+│   │   ├── engine/                # Gamma CAT/EAP/IRT/scoring/exposure
+│   │   ├── render/                # Gamma renderers (items/blocks)
+│   │   └── research/              # DIF, exports, integrity scaffolds
+│   └── engine/                    # Legacy Delta engine (unused runtime)
+└── pipeline/                      # Python tooling (unchanged from IQ-Delta)
+    ├── calibrate_2pl.py
+    ├── dif_logistic.py, dif_mh.py
+    ├── make_norm_pack.py          # Builds norm packs from collected runs
+    └── README.md
 ```
 
----
+## Running
+1) Open `index.html` locally or via any static server (GitHub Pages friendly).  
+2) Accept the non-clinical notice, optionally set a seed for reproducibility, then choose Standard or Quick.  
+3) Results show IQ-style scores + CI + percentiles; exports are local downloads (JSON/CSV).  
+4) History stays in your browser; use “Reset local history” to clear.
 
-## Psychometric Architecture
+## Items: How To Add/Adjust
+- Edit `src/items/big_banks.js` (and related domain files) to add or tune generators. Keep content original; avoid copyrighted/proprietary material.  
+- The adapter `src/core/data/buildItemBank.js` maps Delta items into the Gamma schema (domains → Gf/Gc/Gq/Gv/Gwm/Gs, families, model params). Keep stable IDs and clear domains/blueprints for CAT balancing.  
+- After changes, rebuild banks by reloading the page; there is no build step.
 
-IQ-Omicron follows a **measurement-first architecture**.
+## Norm Packs
+- Baseline norms are bundled (`src/core/norms.js`) and always available.  
+- To create a custom pack: run `pipeline/make_norm_pack.py --input <runs.jsonl> --out norm_pack.json`. The script derives `thetaToIQ` and age bands from collected runs (non-clinical, consented data only).  
+- Load a custom norm pack in the UI (Intro → Norm packs). Packs are validated and persisted locally; “Clear” reverts to baseline. Fail-safe: if loading fails, baseline norms are used and the status message explains why.
 
-### Item Parameterization
+## Research Mode
+- Toggle in Intro → Research Mode. Persists locally; never sends data.  
+- Unlocks additional exports: long CSV (per-item with parameters) and JSONL event log.  
+- All research exports are client-side downloads; you control if/when data leaves the browser.
 
-Items are parameterized using standard IRT notation:
+## Privacy & Ethics
+- Client-side only; storage uses localStorage. No automatic uploads or analytics.  
+- Non-clinical, self-tracking context. No claims of diagnostic validity.  
+- Quality and fairness: exposure controls, SEM-based stopping, optional DIF tools/pipeline; norm packs validated before use.
 
-- **a**: discrimination  
-- **b**: difficulty  
-- *(optional)* **c**: guessing  
-
-### Ability Estimation
-
-Ability (θ) is estimated using Bayesian expected-a-posteriori (EAP) style estimation:
-
-\[
-\hat{\theta}_{EAP} = \int \theta \, p(\theta \mid \mathbf{u}) \, d\theta
-\]
-
-### Adaptive Routing
-
-Item selection balances:
-- Maximum information at current θ
-- Exposure constraints
-- Domain coverage requirements
-
-### Stopping Criteria
-
-Stopping rules may include:
-- Standard error thresholds
-- Item count limits
-- Domain completion rules
-
----
-
-## Norming & Calibration Pipeline
-
-IQ-Omicron is designed to integrate with external statistical tooling.
-
-- 2PL calibration scripts
-- Norm pack generation
-- Anchor and equating readiness
-- Export compatibility with R (`mirt`, `TAM`) and Python workflows
-
----
-
-## DIF & Fairness
-
-- Mantel–Haenszel DIF detection
-- Logistic regression DIF analysis
-- Group-based response comparisons
-
-Fairness is treated as a measurement property, not a UI feature.
-
----
-
-## Installation & Usage
-
-Open `index.html` in a modern browser.  
-Python scripts can be executed directly for calibration and analysis.
-
----
-
-## Extensibility
-
-IQ-Omicron is designed to be extended rather than forked.
-
-- Add new item banks
-- Swap θ estimators
-- Modify CAT logic
-- Export data for external modeling
-
----
-
-## Scientific & Legal Disclaimer
-
-**IQ-Omicron is not a clinical or diagnostic instrument.**
-
-It is intended strictly for **research and educational use**.
-
----
-
-## Roadmap
-
-- Multi-form equating
-- Expanded norming workflows
-- Bayesian priors
-- Longitudinal measurement
-- Secure administration hooks
-
----
-
-## License & Attribution
-
-Authored by **Paul Seed**.
-
-IQ-Omicron draws from the open psychometric tradition including IRT, CAT, Rasch, and Bayesian measurement frameworks.
+## Testing/Verification
+- Smoke test after changes: open `index.html`, run Quick mode, confirm no console errors, exports download (JSON, CSV, long CSV/JSONL in Research Mode), and norm pack load/clear works.  
+- There is no automated test harness yet; manual verification is expected for changes.

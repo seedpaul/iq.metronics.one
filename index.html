@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cognitive Assessment Suite (Non-Clinical)</title>
+  <meta name="description" content="A rigorous non-clinical, IQ-style cognitive assessment suite for self-tracking." />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <div>
+        <h1>Cognitive Assessment Suite</h1>
+        <p class="sub">
+          Research-informed, <strong>non-clinical</strong> IQ-style assessment for self-tracking.
+          Not WAIS / Stanford-Binet. No diagnosis. No clinical claims.
+        </p>
+      </div>
+      <div class="chip">Client-side -  GitHub Pages ready</div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section id="screen-intro" class="card">
+      <h2>Start</h2>
+
+      <div class="grid2">
+        <div class="panel">
+          <h3>What this is</h3>
+          <ul>
+            <li>Multi-domain cognitive assessment: fluid, verbal, quantitative, working memory, processing speed, spatial.</li>
+            <li>Adaptive testing (CAT) for several subtests with confidence intervals.</li>
+            <li>Results shown as both <strong>IQ-style estimate + CI</strong> and <strong>percentile + CI</strong>.</li>
+          </ul>
+        </div>
+
+        <div class="panel">
+          <h3>What this is not</h3>
+          <ul>
+            <li>Not WAIS, Stanford-Binet, or any clinical IQ test.</li>
+            <li>Not a medical/psychological evaluation.</li>
+            <li>Online tests cannot fully replicate controlled proctoring conditions.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="row">
+        <label class="chk">
+          <input id="agree" type="checkbox" />
+          I understand this is non-clinical and I want to continue.
+        </label>
+      </div>
+
+      <div class="row column">
+        <label for="seedInput" class="lbl">Reproducibility seed (optional)</label>
+        <input id="seedInput" class="textInput" type="text" placeholder="Leave blank for a random seed" />
+        <div class="hint">Use the same seed to reproduce the item order for debugging, CAT checks, or research controls.</div>
+      </div>
+
+      <div class="row">
+        <button id="btnStart" class="btn primary" disabled>Start assessment (25-35 min)</button>
+        <button id="btnQuick" class="btn">Quick check (10-12 min)</button>
+        <button id="btnReset" class="btn danger">Reset local history</button>
+      </div>
+
+      <hr class="hr"/>
+
+      <details class="details">
+        <summary><strong>Norm packs (optional)</strong> - improve calibration</summary>
+        <p class="muted">
+          The app is self-contained and works out of the box using a bundled baseline norm model.
+          You can optionally load a custom <em>norm pack</em> (JSON) built from your own sample using the included pipeline.
+        </p>
+        <div class="row">
+          <input id="normFile" class="file" type="file" accept="application/json" />
+          <button id="btnLoadNorm" class="btn">Load norm pack</button>
+          <button id="btnClearNorm" class="btn">Clear custom norm pack</button>
+        </div>
+        <div id="normStatus" class="muted"></div>
+      </details>
+
+      <details class="details">
+        <summary><strong>Privacy</strong></summary>
+        <p class="muted">
+          Runs and history are stored only in your browser (localStorage). No server. No tracking.
+          You can export your run data at the end.
+        </p>
+      </details>
+    </section>
+
+    <section id="screen-test" class="card hidden" aria-live="polite">
+      <div class="topbar">
+        <div class="left">
+          <div class="pill" id="testPill">-</div>
+          <div class="meta" id="metaLine">-</div>
+          <div class="flags" id="qualityFlags"></div>
+        </div>
+        <div class="right">
+          <div class="timerLabel">Time left</div>
+          <div class="timerValue" id="timerValue">--:--</div>
+        </div>
+      </div>
+
+      <div class="qwrap">
+        <h2 id="qTitle">-</h2>
+        <p id="qPrompt" class="prompt">-</p>
+        <div id="stimulus" class="stimulus"></div>
+        <div id="answerArea"></div>
+
+        <div class="row space">
+          <button id="btnBack" class="btn">Back</button>
+          <button id="btnNext" class="btn primary">Next</button>
+          <button id="btnPause" class="btn">Pause</button>
+        </div>
+
+        <p id="helpText" class="hint">-</p>
+      </div>
+    </section>
+
+    <section id="screen-results" class="card hidden">
+      <h2>Results</h2>
+      <div id="resultsSummary" class="results"></div>
+
+      <div class="row">
+        <button id="btnDownloadJson" class="btn primary">Download run (JSON)</button>
+        <button id="btnDownloadCsv" class="btn">Download item log (CSV)</button>
+        <button id="btnRestart" class="btn">Take again</button>
+      </div>
+
+      <hr class="hr"/>
+
+      <h3>History (this browser)</h3>
+      <div id="historyArea" class="history"></div>
+
+      <details class="details">
+        <summary><strong>Quality flags</strong></summary>
+        <ul class="muted">
+          <li>Tab switches and focus losses: leaving the page during timed items.</li>
+          <li>Rapid guesses: extremely fast answers that may be random.</li>
+          <li>Attention checks: simple instructed-response items at the start.</li>
+        </ul>
+      </details>
+
+      <details class="details">
+        <summary><strong>Interpretation notes</strong></summary>
+        <ul class="muted">
+          <li>Your estimate is reported with uncertainty (95% CI). Online settings add additional noise.</li>
+          <li>Scores are most useful for <em>self-tracking</em> over time, using the same device and conditions.</li>
+          <li>Custom norm packs can improve calibration for a specific audience or cohort.</li>
+        </ul>
+      </details>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <small>
+      Built as a non-clinical assessment. If you need a valid IQ score or evaluation, seek a licensed professional.
+    </small>
+  </footer>
+
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>

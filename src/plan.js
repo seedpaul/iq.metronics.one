@@ -188,6 +188,7 @@ export function buildPlan(mode='full', opts = {}){
   return {
     id: isQuick ? 'quick' : 'full',
     seed,
-    nodes
+    nodes,
+    banks
   };
 }

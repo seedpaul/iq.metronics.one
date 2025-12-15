@@ -1,5 +1,6 @@
 import { buildPlan } from "./plan.js";
 import { runAssessment } from "./core/index.js";
+import { renderItem } from "./core/render/itemRenderer.js";
 
 const els = {
   intro: document.getElementById("screen-intro"),
@@ -140,7 +141,12 @@ function downloadText(filename, text, mime="text/plain"){
 
 function renderPrompt(item){
   els.qTitle.textContent = item.title || item.domain || "Item";
-  els.qPrompt.textContent = item.prompt || "Respond to continue.";
+  if (item.type === "digitspan"){
+    const dir = item.direction === "backward" ? "Backward" : "Forward";
+    els.qPrompt.textContent = `${dir} digit span. Remember the digits, then type them.`;
+  }else{
+    els.qPrompt.textContent = item.prompt || "Respond to continue.";
+  }
 }
 
 function renderStimulus(item){
@@ -150,6 +156,15 @@ function renderStimulus(item){
     tpl.innerHTML = item.stemSvg;
     const svg = tpl.firstElementChild;
     if (svg) els.stimulus.appendChild(svg);
+    return;
+  }
+  if (item.type === "digitspan"){
+    const box = document.createElement("div");
+    box.className = "callout";
+    box.style.fontSize = "26px";
+    box.style.letterSpacing = "4px";
+    box.textContent = item.digits || "";
+    els.stimulus.appendChild(box);
     return;
   }
   els.stimulus.textContent = "";
@@ -220,55 +235,72 @@ function scoreItem(item, response){
 }
 
 function presentItemUI(ctx){
+  const { node, item, raw } = ctx;
   return new Promise((resolve) => {
     state.currentResolver = resolve;
-    const { node, item } = ctx;
     state.currentItem = item;
 
     els.testPill.textContent = node.title || node.id || "Test";
     els.metaLine.textContent = node.subtitle || node.mode || "";
-    renderPrompt(item);
-    renderStimulus(item);
-    els.helpText.textContent = "Select an option, then Next.";
+    renderPrompt(raw || item);
+    renderStimulus(raw || item);
+    els.helpText.textContent = "Respond to continue.";
     els.btnNext.disabled = true;
     els.btnBack.disabled = true;
     els.btnPause.disabled = true;
 
     const t0 = performance.now();
-    let response = null;
+    let renderer = null;
+    let fallbackResponse = null;
 
-    const enableNext = () => { els.btnNext.disabled = false; };
+    const useRenderer = item?.stem?.type;
 
-    if (item.type === "speed_symbol"){
+    if (useRenderer){
       els.answerArea.innerHTML = "";
-      const yes = document.createElement("button");
-      const no = document.createElement("button");
-      yes.className = "btn";
-      no.className = "btn";
-      yes.textContent = "Yes";
-      no.textContent = "No";
-      yes.addEventListener("click", () => { response = { choice: "YES" }; enableNext(); });
-      no.addEventListener("click", () => { response = { choice: "NO" }; enableNext(); });
-      els.answerArea.appendChild(yes);
-      els.answerArea.appendChild(no);
-    }else if (item.type === "speed_coding" || item.type === "digitspan"){
-      const placeholder = item.type === "speed_coding" ? "Enter the digits" : "Type the digits";
-      renderInputField(placeholder, (val) => {
-        response = { value: val };
-        els.btnNext.disabled = !(val && val.trim().length);
-        if (val && val.trim().length) enableNext();
+      renderer = renderItem({
+        mount: els.answerArea,
+        item,
+        onSelectionChanged: (ready) => { els.btnNext.disabled = !ready; }
       });
     }else{
-      renderOptions(item, (idx) => {
-        const opt = (item.choices || item.options || [])[idx];
-        response = { choice: idx, choiceVal: opt?.key ?? opt };
-        enableNext();
-      });
+      const enableNext = () => { els.btnNext.disabled = false; };
+      if (raw?.type === "speed_symbol"){
+        els.answerArea.innerHTML = "";
+        const yes = document.createElement("button");
+        const no = document.createElement("button");
+        yes.className = "btn";
+        no.className = "btn";
+        yes.textContent = "Yes";
+        no.textContent = "No";
+        yes.addEventListener("click", () => { fallbackResponse = { choice: "YES" }; enableNext(); });
+        no.addEventListener("click", () => { fallbackResponse = { choice: "NO" }; enableNext(); });
+        els.answerArea.appendChild(yes);
+        els.answerArea.appendChild(no);
+      }else if (raw?.type === "speed_coding" || raw?.type === "digitspan"){
+        const placeholder = raw.type === "speed_coding" ? "Enter the digits" : "Type the digits";
+        renderInputField(placeholder, (val) => {
+          fallbackResponse = { value: val };
+          els.btnNext.disabled = !(val && val.trim().length);
+          if (val && val.trim().length) enableNext();
+        });
+      }else{
+        renderOptions(raw || item, (idx) => {
+          const opt = ((raw?.choices || raw?.options || item.choices || item.options || []))[idx];
+          fallbackResponse = { choice: idx, choiceVal: opt?.key ?? opt };
+          enableNext();
+        });
+      }
     }
 
     els.btnNext.onclick = () => {
       const rtMs = Math.max(0, performance.now() - t0);
-      const scored = scoreItem(item, response);
+      if (renderer){
+        const r = renderer.getResponse();
+        renderer.cleanup?.();
+        resolve({ x: r?.x ?? null, rtMs: r?.rtMs ?? rtMs, meta: r?.meta ?? {} });
+        return;
+      }
+      const scored = scoreItem(raw || item, fallbackResponse);
       resolve({ x: scored.x, rtMs, meta: scored.meta });
     };
   });

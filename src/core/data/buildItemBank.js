@@ -88,9 +88,12 @@ function baseStem(item){
     }
     return { type: "coding_block", length: Math.max(10, item.seq?.length || 16), trialMs: 2000, keymap };
   }
-  // Preserve original prompt where possible for general MCQ.
+  if (item.type === "mcq_svg"){
+    return { type: "svg_stem", prompt: item.prompt || item.title || "", html: item.stemSvg || "" };
+  }
+  // General MC/text
   return {
-    type: "text",
+    type: "text_prompt",
     prompt: item.prompt || item.title || ""
   };
 }

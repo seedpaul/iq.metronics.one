@@ -141,7 +141,7 @@ export async function runAssessment(config, io = {}){
         const item = cat.pickNextItem();
         if (!item) break;
 
-        const resp = await presenter({ node, item: item.raw ?? item, theta: cat.theta, sem: cat.sem });
+        const resp = await presenter({ node, item, raw: item.raw ?? null, theta: cat.theta, sem: cat.sem });
         const x = computeX(resp, item);
         const rtMs = resp?.rtMs ?? null;
         const meta = resp?.meta ?? {};
@@ -177,7 +177,7 @@ export async function runAssessment(config, io = {}){
     const seqResponses = [];
 
     for (const item of items){
-      const resp = await presenter({ node, item: item.raw ?? item, theta: null, sem: null });
+      const resp = await presenter({ node, item, raw: item.raw ?? null, theta: null, sem: null });
       const x = computeX(resp, item);
       const rtMs = resp?.rtMs ?? null;
       const meta = resp?.meta ?? {};

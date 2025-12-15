@@ -17,6 +17,17 @@ export function renderItem({ mount, item, onSelectionChanged }){
   const stim = document.createElement("div");
   mount.appendChild(stim);
 
+  if (item.stem?.type === "text_prompt"){
+    stim.innerHTML = "";
+  }
+
+  if (item.stem?.type === "svg_stem"){
+    const box = document.createElement("div");
+    box.className = "svgStem";
+    box.innerHTML = item.stem.html ?? "";
+    stim.appendChild(box);
+  }
+
   // -------- Nonverbal / visual stems --------
 
   if (item.stem.type === "analogy_panels"){
@@ -126,7 +137,11 @@ export function renderItem({ mount, item, onSelectionChanged }){
       el.dataset.index = String(idx);
 
       if (typeof opt === "object"){
-        el.innerHTML = symbolToSvg(opt, 92);
+        if (opt.svg){
+          el.innerHTML = opt.svg;
+        }else{
+          el.innerHTML = symbolToSvg(opt, 92);
+        }
       }else{
         el.textContent = String(opt);
       }

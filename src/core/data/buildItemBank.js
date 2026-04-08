@@ -37,16 +37,20 @@ function mapFamily(item){
   if (domain === "Gf") return "matrix_reasoning";
   if (domain === "Gv") return "mental_rotation";
   if (domain === "Gq"){
-    if (["ratio","rate","mapping","algebra"].includes(kind)) return "ratio_reasoning";
+    if (["ratio", "rate"].includes(kind)) return "ratio_reasoning";
+    if (kind === "algebra") return "algebraic_reasoning";
+    if (kind === "comparison") return "quantitative_comparison";
     return "number_pattern";
   }
   if (domain === "Gc"){
     if (kind === "logic") return "logical_inference";
+    if (kind === "classification") return "verbal_classification";
+    if (["vocab", "opposite", "completion"].includes(kind)) return "verbal_knowledge";
     return "controlled_analogy";
   }
   if (domain === "Gwm") return "digit_span_block";
   if (domain === "Gs"){
-    if (item.type === "speed_coding") return "coding_block";
+    if (item.type === "speed_coding" || item.type === "speed-coding") return "coding_block";
     return "symbol_search_block";
   }
   return FAMILY_FALLBACK[domain] || "misc";
@@ -77,6 +81,39 @@ function keyFromAnswer(item){
 }
 
 function baseStem(item){
+  if (item.type === "speed-symbol-search"){
+    return {
+      type: "symbol_search_block",
+      length: Math.max(8, item.rows?.length || 18),
+      setSize: 2,
+      trialMs: 1800,
+      keySymbols: item.keySymbols || [],
+      trials: Array.isArray(item.rows)
+        ? item.rows.map((row, index) => ({
+            i: index,
+            target: item.keySymbols || [],
+            pair: row.pair || [],
+            present: !!row.answer
+          }))
+        : []
+    };
+  }
+  if (item.type === "speed-coding"){
+    const keymap = Object.fromEntries((item.key || []).map(entry => [entry.sym, entry.digit]));
+    return {
+      type: "coding_block",
+      length: Math.max(8, item.prompts?.length || 24),
+      trialMs: 2000,
+      keymap,
+      options: (item.key || []).map(entry => entry.digit),
+      sequence: Array.isArray(item.prompts)
+        ? item.prompts.map((symbol, index) => ({
+            symbol,
+            digit: item.answers?.[index] ?? null
+          }))
+        : []
+    };
+  }
   if (item.type === "speed_symbol"){
     const setSize = Array.isArray(item.row) ? Math.min(6, Math.max(3, item.row.length)) : 6;
     return { type: "symbol_search_block", length: 24, setSize, trialMs: 1700 };
@@ -84,9 +121,18 @@ function baseStem(item){
   if (item.type === "speed_coding"){
     const keymap = {};
     for (const kp of item.keyPairs || []){
-      keymap[kp.dig] = kp.sym;
+      keymap[kp.sym] = kp.dig;
     }
-    return { type: "coding_block", length: Math.max(10, item.seq?.length || 16), trialMs: 2000, keymap };
+    return {
+      type: "coding_block",
+      length: Math.max(10, item.seq?.length || 16),
+      trialMs: 2000,
+      keymap,
+      options: (item.keyPairs || []).map(kp => kp.dig),
+      sequence: Array.isArray(item.seq)
+        ? item.seq.map((symbol) => ({ symbol, digit: keymap[symbol] ?? null }))
+        : []
+    };
   }
   if (item.type === "mcq_svg"){
     return { type: "svg_stem", prompt: item.prompt || item.title || "", html: item.stemSvg || "" };
@@ -134,7 +180,11 @@ export function buildItemBank({ banks, includeDomains }){
     if (includeDomains && !includeDomains.includes(k)) continue;
     if (!Array.isArray(arr)) continue;
     for (const it of arr){
-      const norm = normalizeItem(it);
+      const norm = normalizeItem({
+        ...it,
+        domain: it.domain || k,
+        subtestId: it.subtestId || k
+      });
       items.push(norm);
       domainsSeen.add(norm.domain);
     }

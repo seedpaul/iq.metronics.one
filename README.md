@@ -47,4 +47,9 @@ pipeline/                       # Python calibration/norm/DIF tools (unchanged)
 - Open `index.html`, run Quick mode, confirm no console errors.  
 - Verify downloads (JSON, CSV; long CSV/JSONL in Research Mode).  
 - Load/clear a norm pack; ensure status updates and baseline fallback works.  
+- Run `node scripts/validate-assessment.mjs` to verify `full`, `quick`, and `smoke` plans still build valid section banks, normalize sampled items, and complete a simulated end-to-end assessment run.  
 - Keep branding as `iq.metronics.one` in titles/README/UI chips.
+
+**QA lab**
+- The Advanced panel includes a local QA lab gate for manual section review.  
+- The lab uses the chosen seed to sample items deterministically from the full section bank, and it exposes item metadata plus aggregate accuracy/RT stats for fast QA passes.  

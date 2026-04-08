@@ -9,6 +9,7 @@
   <meta property="og:site_name" content="iq.metronics.one" />
   <meta property="og:description" content="Client-side adaptive assessment with clear uncertainty, research exports, and optional norm packs." />
   <meta property="og:url" content="https://iq.metronics.one" />
+  <link rel="icon" href="data:," />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -16,92 +17,101 @@
     <div class="header-inner">
       <div>
         <h1>iq.metronics.one</h1>
-        <p class="sub">
-          Research-informed, <strong>non-clinical</strong> IQ-style assessment for self-tracking.
-          Not WAIS / Stanford-Binet. No diagnosis. No clinical claims.
-        </p>
+        <p class="sub">Private, non-clinical cognitive self-tracking.</p>
       </div>
-      <div class="chip">Client-side · iq.metronics.one</div>
     </div>
   </header>
 
   <main class="container">
-    <section id="screen-intro" class="card">
-      <h2>Start</h2>
+    <section id="screen-intro" class="card landingShell">
+      <div class="landingHero">
+        <div class="landingEyebrow">Adaptive cognitive self-tracking</div>
+        <h2 class="landingTitle">Pick the long test or the short test.</h2>
+        <p class="landingLead">
+          Private, client-side cognitive testing with two default paths: full baseline or quick check-in.
+        </p>
 
-      <div class="grid2">
-        <div class="panel">
-          <h3>What this is</h3>
-          <ul>
-            <li>Multi-domain cognitive assessment: fluid, verbal, quantitative, working memory, processing speed, spatial.</li>
-            <li>Adaptive testing (CAT) for several subtests with confidence intervals.</li>
-            <li>Results shown as both <strong>IQ-style estimate + CI</strong> and <strong>percentile + CI</strong>.</li>
-          </ul>
+        <div class="landingChoiceNotes">
+          <div class="choiceNote">
+            <strong>Long test</strong>
+            <span>25 to 35 min · fullest estimate</span>
+          </div>
+          <div class="choiceNote">
+            <strong>Short test</strong>
+            <span>10 to 12 min · faster check-in</span>
+          </div>
         </div>
 
-        <div class="panel">
-          <h3>What this is not</h3>
-          <ul>
-            <li>Not WAIS, Stanford-Binet, or any clinical IQ test.</li>
-            <li>Not a medical/psychological evaluation.</li>
-            <li>Online tests cannot fully replicate controlled proctoring conditions.</li>
-          </ul>
-        </div>
-      </div>
-
-      <div class="row">
-        <label class="chk">
+        <label class="consentCard chk">
           <input id="agree" type="checkbox" />
-          I understand this is non-clinical and I want to continue.
+          <span>
+            <strong>I understand this is non-clinical and I want to continue.</strong>
+            <span class="consentSub">Not diagnostic. Runs stay on this device unless you explicitly export them.</span>
+          </span>
         </label>
+
+        <div class="row actionCluster landingActions modeActions">
+          <button id="btnStart" class="btn primary heroStart" disabled>Start long test</button>
+          <button id="btnQuick" class="btn heroStart secondaryStart" disabled>Start short test</button>
+        </div>
+
+        <details class="details advancedPanel">
+          <summary><strong>Advanced options</strong> <span class="muted">for calibration, QA, and research use</span></summary>
+          <div class="advancedGrid">
+            <div class="settingCard tuningCard">
+              <label for="seedInput" class="lbl">Reproducibility seed</label>
+              <input id="seedInput" class="textInput" type="text" placeholder="Leave blank for a random seed" />
+              <div class="hint">Reuse a seed for debugging, QA, or controlled repeat sessions.</div>
+            </div>
+
+            <div class="settingCard researchCard">
+              <label class="chk tuningToggle">
+                <input id="researchMode" type="checkbox" />
+                <span>Enable Research Mode</span>
+              </label>
+              <div class="hint">Unlocks extended exports and event logs. Nothing leaves the browser unless you download it.</div>
+            </div>
+
+            <div class="settingCard normCard">
+              <label for="normFile" class="lbl">Norm pack</label>
+              <input id="normFile" class="file" type="file" accept="application/json" />
+              <div class="row">
+                <button id="btnLoadNorm" class="btn">Load norm pack</button>
+                <button id="btnClearNorm" class="btn">Clear custom norm pack</button>
+              </div>
+              <div id="normStatus" class="muted small"></div>
+            </div>
+
+            <div class="settingCard smokeCard">
+              <label class="lbl">Testing pass</label>
+              <div class="hint">Very short run that touches each section so you can QA the flow quickly.</div>
+              <div class="row">
+                <button id="btnSmoke" class="btn smokeBtn" disabled title="Check the non-clinical consent box above to enable this.">Run super short test</button>
+              </div>
+              <div id="smokeStatus" class="muted small">Enable the consent checkbox above to unlock this testing pass.</div>
+            </div>
+
+            <div class="settingCard labCard">
+              <label class="lbl">QA test lab</label>
+              <div class="hint">Local gated section browser for QA and item review. This is a convenience gate, not a real security boundary.</div>
+              <input id="labPassword" class="textInput" type="password" placeholder="Enter lab access code" />
+              <div class="row">
+                <button id="btnLabUnlock" class="btn">Unlock lab</button>
+                <button id="btnLabOpen" class="btn secondaryStart" disabled>Open test lab</button>
+              </div>
+              <div id="labGateStatus" class="muted small">Locked. Use the local access code to enable the section browser.</div>
+            </div>
+
+            <div class="settingCard localCard">
+              <label class="lbl">Local data</label>
+              <div class="hint">History stays in this browser unless you clear it.</div>
+              <div class="row">
+                <button id="btnReset" class="btn ghostBtn">Reset local history</button>
+              </div>
+            </div>
+          </div>
+        </details>
       </div>
-
-      <div class="row column">
-        <label for="seedInput" class="lbl">Reproducibility seed (optional)</label>
-        <input id="seedInput" class="textInput" type="text" placeholder="Leave blank for a random seed" />
-        <div class="hint">Use the same seed to reproduce the item order for debugging, CAT checks, or research controls.</div>
-      </div>
-
-      <div class="row">
-        <button id="btnStart" class="btn primary" disabled>Start assessment (25-35 min)</button>
-        <button id="btnQuick" class="btn">Quick check (10-12 min)</button>
-        <button id="btnReset" class="btn danger">Reset local history</button>
-      </div>
-
-      <hr class="hr"/>
-
-      <details class="details">
-        <summary><strong>Norm packs (optional)</strong> - improve calibration</summary>
-        <p class="muted">
-          The app is self-contained and works out of the box using a bundled baseline norm model.
-          You can optionally load a custom <em>norm pack</em> (JSON) built from your own sample using the included pipeline.
-        </p>
-      <div class="row">
-        <input id="normFile" class="file" type="file" accept="application/json" />
-        <button id="btnLoadNorm" class="btn">Load norm pack</button>
-        <button id="btnClearNorm" class="btn">Clear custom norm pack</button>
-      </div>
-      <div id="normStatus" class="muted"></div>
-    </details>
-
-      <details class="details">
-        <summary><strong>Research Mode (optional)</strong></summary>
-        <p class="muted">
-          Enables advanced exports for research and calibration. No data leaves your browser unless you download it.
-        </p>
-        <label class="chk">
-          <input id="researchMode" type="checkbox" />
-          Enable Research Mode (shows research exports)
-        </label>
-      </details>
-
-      <details class="details">
-        <summary><strong>Privacy</strong></summary>
-        <p class="muted">
-          Runs and history are stored only in your browser (localStorage). No server. No tracking.
-          You can export your run data at the end.
-        </p>
-      </details>
     </section>
 
     <section id="screen-test" class="card hidden" aria-live="polite">
@@ -126,10 +136,72 @@
         <div class="row space">
           <button id="btnBack" class="btn">Back</button>
           <button id="btnNext" class="btn primary">Next</button>
-          <button id="btnPause" class="btn">Pause</button>
+          <button id="btnPause" class="btn quitBtn">Quit test</button>
         </div>
 
         <p id="helpText" class="hint">-</p>
+      </div>
+    </section>
+
+    <section id="screen-lab" class="card hidden" aria-live="polite">
+      <div class="topbar">
+        <div class="left">
+          <div class="pill">QA Lab</div>
+          <div class="meta" id="labMeta">Load a section to review items manually.</div>
+        </div>
+        <div class="right">
+          <button id="btnLabClose" class="btn">Close lab</button>
+        </div>
+      </div>
+
+      <div class="labToolbar">
+        <label class="labField">
+          <span class="lbl">Section</span>
+          <select id="labSection" class="selectInput">
+            <option value="attention">Attention</option>
+            <option value="fluid">Fluid reasoning</option>
+            <option value="verbal">Verbal reasoning</option>
+            <option value="quant">Quantitative reasoning</option>
+            <option value="wm">Working memory</option>
+            <option value="speed_symbol">Processing speed I</option>
+            <option value="speed_coding">Processing speed II</option>
+            <option value="spatial">Spatial reasoning</option>
+          </select>
+        </label>
+
+        <label class="labField">
+          <span class="lbl">Items</span>
+          <input id="labCount" class="textInput" type="number" min="1" max="8" step="1" value="3" />
+        </label>
+
+        <label class="labField wide">
+          <span class="lbl">Seed</span>
+          <input id="labSeed" class="textInput" type="text" placeholder="Leave blank to reuse the app seed logic" />
+        </label>
+
+        <div class="labActions">
+          <button id="btnLabLoad" class="btn primary">Load section</button>
+        </div>
+      </div>
+
+      <div id="labStatus" class="muted small labStatus">No section loaded.</div>
+      <div id="labSummary" class="labSummary"></div>
+      <div id="labItemMeta" class="labItemMeta"></div>
+
+      <div class="qwrap labQwrap">
+        <h2 id="labTitle">Select a section in the lab.</h2>
+        <p id="labPrompt" class="prompt">The lab lets you inspect and answer a few items from any section without running the public test flow.</p>
+        <div id="labStimulus" class="stimulus hidden"></div>
+        <div id="labAnswerArea"></div>
+
+        <div class="row space">
+          <button id="btnLabPrev" class="btn" disabled>Previous item</button>
+          <button id="btnLabSubmit" class="btn primary" disabled>Submit answer</button>
+          <button id="btnLabNext" class="btn" disabled>Next item</button>
+        </div>
+
+        <p id="labHelpText" class="hint">Load a section to start reviewing items.</p>
+        <div id="labFeedback" class="labFeedback"></div>
       </div>
     </section>
 

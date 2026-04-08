@@ -6,6 +6,12 @@ import { buildItemBank, summarizeBank } from "./data/buildItemBank.js";
 
 const noop = () => {};
 
+function makeAbortError(){
+  const err = new Error("Assessment aborted");
+  err.code = "RUN_ABORTED";
+  return err;
+}
+
 function domainFromNode(node){
   const d = node?.subtestId || node?.domain || node?.id;
   switch (d){
@@ -24,6 +30,7 @@ function domainFromNode(node){
 }
 
 function makeCatConfig(node, domain){
+  const familyTargets = node.blueprintTargets || node.blueprint || null;
   return {
     semThreshold: { [domain]: node.stopSem ?? 0.32 },
     minItems: { [domain]: node.minItems ?? 8 },
@@ -35,7 +42,32 @@ function makeCatConfig(node, domain){
     anchorMax: { [domain]: 0 },
     anchorAvoidFirstTwo: { [domain]: true },
     anchorMiniBlockN: { [domain]: 0 },
-    familyTargets: node.blueprintTargets ? { [domain]: node.blueprintTargets } : undefined
+    familyTargets: familyTargets ? { [domain]: familyTargets } : undefined
+  };
+}
+
+function summarizeIntegrity(responses, integrity = null){
+  const base = integrity && typeof integrity === "object" ? integrity : {};
+  const flags = Array.isArray(base.flags) ? [...base.flags] : [];
+  const attentionResponses = responses.filter(r => r.domain === "attention");
+  const attentionFailed = attentionResponses.filter(r => r.x !== 1).length;
+  const derivedRapidGuessing = responses.filter(r => Number.isFinite(r.rtMs) && r.rtMs < 900).length;
+
+  return {
+    flags,
+    visibilityChanges: Number(base.visibilityChanges) || 0,
+    focusLosses: Number(base.focusLosses) || 0,
+    pasteAttempts: Number(base.pasteAttempts) || 0,
+    copyAttempts: Number(base.copyAttempts) || 0,
+    contextMenu: Number(base.contextMenu) || 0,
+    fullscreenExits: Number(base.fullscreenExits) || 0,
+    pointerLockLosses: Number(base.pointerLockLosses) || 0,
+    rapidGuessingCount: Math.max(Number(base.rapidGuessingCount) || 0, derivedRapidGuessing),
+    attentionChecks: {
+      total: attentionResponses.length,
+      failed: attentionFailed,
+      passed: Math.max(0, attentionResponses.length - attentionFailed)
+    }
   };
 }
 
@@ -102,6 +134,11 @@ export async function runAssessment(config, io = {}){
   const presenter = io.presentItem || (async () => ({ x: null, rtMs: null, meta: {} }));
   const onEvent = io.onEvent || noop;
   const runId = config.runId || `run-${Date.now()}`;
+  const shouldStop = typeof config.shouldStop === "function" ? config.shouldStop : () => false;
+
+  const throwIfStopped = () => {
+    if (shouldStop()) throw makeAbortError();
+  };
 
   // Build and summarize bank
   const sourceBanks = banks || config.banks || collectBanksFromPlan(plan);
@@ -119,6 +156,7 @@ export async function runAssessment(config, io = {}){
   const subtestSummaries = [];
 
   for (const node of plan.nodes){
+    throwIfStopped();
     const domain = domainFromNode(node);
     const nodeCtx = { nodeId: node.id, subtestId: node.subtestId, domain };
     onEvent("NODE_START", { ...nodeCtx });
@@ -139,10 +177,13 @@ export async function runAssessment(config, io = {}){
       cat.start();
 
       while (true){
+        throwIfStopped();
         const item = cat.pickNextItem();
         if (!item) break;
 
         const resp = await presenter({ node, item, raw: item.raw ?? null, theta: cat.theta, sem: cat.sem });
+        if (resp?.aborted) throw makeAbortError();
+        throwIfStopped();
         const x = computeX(resp, item);
         const rtMs = resp?.rtMs ?? null;
         const meta = resp?.meta ?? {};
@@ -180,7 +221,10 @@ export async function runAssessment(config, io = {}){
     const seqResponses = [];
 
     for (const item of items){
+      throwIfStopped();
       const resp = await presenter({ node, item, raw: item.raw ?? null, theta: null, sem: null });
+      if (resp?.aborted) throw makeAbortError();
+      throwIfStopped();
       const x = computeX(resp, item);
       const rtMs = resp?.rtMs ?? null;
       const meta = resp?.meta ?? {};
@@ -230,7 +274,8 @@ export async function runAssessment(config, io = {}){
 
   // Filter to composite domains (skip attention/other if flagged)
   const compositeSummaries = subtestSummaries.filter(s => s && s.domain && s.domain !== "attention");
-  const report = buildReport({ ageYears, subtestSummaries: compositeSummaries, integrity: {}, normPack: config.normPack || null });
+  const integrity = summarizeIntegrity(responses, config.integrity);
+  const report = buildReport({ ageYears, subtestSummaries: compositeSummaries, integrity, normPack: config.normPack || null });
 
   // Build exports
   const runJson = JSON.stringify({ runId, planId: plan.id, ageYears, report, responses }, null, 2);

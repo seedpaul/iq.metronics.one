@@ -1,6 +1,19 @@
 import { mulberry32, choice, shuffle, id } from './common.js';
 
-const SYMBOLS = ['<>','[]','{}','()','+-','=/','~!','%%','##','@@','!!','??','**'];
+const SYMBOLS = [
+  'sigil_orbit',
+  'sigil_beacon',
+  'sigil_frame',
+  'sigil_kite',
+  'sigil_pulse',
+  'sigil_halo',
+  'sigil_prism',
+  'sigil_axis',
+  'sigil_nova',
+  'sigil_arc',
+  'sigil_gate',
+  'sigil_quartz'
+];
 
 function sanitizeSeed(seed){
   if (typeof seed === 'number' && Number.isFinite(seed)) return seed >>> 0;
@@ -20,12 +33,12 @@ export function buildSpeedSymbolSearchPages({ pages=4, seed }={}){
 
     for (let i=0;i<rowCount;i++){
       const pair = shuffle(rng, SYMBOLS).slice(0,2);
-      const answer = (pair[0] === keySymbols[0] && pair[1] === keySymbols[1]) || (pair[0] === keySymbols[1] && pair[1] === keySymbols[0]);
       // increase match rate modestly
       if (rng() < 0.25){
         pair[0] = keySymbols[0];
         pair[1] = rng() < 0.5 ? keySymbols[1] : choice(rng, SYMBOLS.filter(s => s !== keySymbols[1]));
       }
+      const answer = (pair[0] === keySymbols[0] && pair[1] === keySymbols[1]) || (pair[0] === keySymbols[1] && pair[1] === keySymbols[0]);
       rows.push({ pair, answer });
     }
 

@@ -1,5 +1,20 @@
-import { symbolToSvg, renderSymbolGrid } from "./symbols.js";
+import { symbolToSvg, renderSymbolGrid, drawSymbolCanvas } from "./symbols.js";
 import { nowMs, clamp } from "../engine/utils.js";
+
+const FALLBACK_SPEED_SYMBOLS = [
+  "sigil_orbit",
+  "sigil_beacon",
+  "sigil_frame",
+  "sigil_kite",
+  "sigil_pulse",
+  "sigil_halo",
+  "sigil_prism",
+  "sigil_axis",
+  "sigil_nova",
+  "sigil_arc",
+  "sigil_gate",
+  "sigil_quartz"
+];
 
 export function renderItem({ mount, item, onSelectionChanged }){
   mount.innerHTML = "";
@@ -9,11 +24,6 @@ export function renderItem({ mount, item, onSelectionChanged }){
   let blockResult = null;
   let cleanupFn = null;
   const optionList = Array.isArray(item.options) ? item.options : [];
-
-  const prompt = document.createElement("div");
-  prompt.className = "itemPrompt";
-  prompt.textContent = item.stem?.prompt ?? "Select an option.";
-  mount.appendChild(prompt);
 
   const stim = document.createElement("div");
   mount.appendChild(stim);
@@ -117,7 +127,7 @@ export function renderItem({ mount, item, onSelectionChanged }){
   }
 
   if (item.stem.type === "coding_block"){
-    const block = renderCodingBlock(stim, { ...item.stem, options: item.options }, (result) => {
+    const block = renderCodingBlock(stim, { ...item.stem, options: item.stem.options || item.options }, (result) => {
       blockResult = result;
       onSelectionChanged?.(true);
     });
@@ -149,6 +159,8 @@ export function renderItem({ mount, item, onSelectionChanged }){
           }else{
             el.innerHTML = symbolToSvg(opt, 92);
           }
+        }else if (typeof opt === "string" && opt.startsWith("sigil_")){
+          el.innerHTML = symbolToSvg(opt, 92);
         }else{
           el.textContent = String(opt);
         }
@@ -384,7 +396,7 @@ function renderNBackBlock(mount, cfg, onDone){
 }
 
 function renderSymbolSearchBlock(mount, cfg, onDone){
-  const state = { running:false, cancelled:false, index:0, responses:[], lastStartMs:0, current:null };
+  const state = { running:false, cancelled:false, index:0, responses:[], lastStartMs:0, current:null, awaitingResponse:false };
 
   const wrap = document.createElement("div");
   wrap.className = "callout";
@@ -424,48 +436,35 @@ function renderSymbolSearchBlock(mount, cfg, onDone){
   const ctx = canvas.getContext("2d");
 
   function genTrial(){
-    const alphabet = ["●","■","▲","◆","✚","✖","✶","⬟","⬣","⬢"];
-    const target = alphabet[Math.floor(Math.random() * alphabet.length)];
-    const set = [];
-    for (let i = 0; i < cfg.setSize; i++){
-      set.push(alphabet[Math.floor(Math.random() * alphabet.length)]);
-    }
+    const alphabet = FALLBACK_SPEED_SYMBOLS;
+    const target = shuffleCopy(alphabet).slice(0, 2);
+    const set = shuffleCopy(alphabet).slice(0, 2);
     const present = Math.random() < 0.5;
     if (present){
-      set[Math.floor(Math.random() * set.length)] = target;
+      set[Math.floor(Math.random() * set.length)] = target[Math.floor(Math.random() * target.length)];
     }else{
       for (let i = 0; i < set.length; i++){
-        if (set[i] === target){
-          set[i] = alphabet[(alphabet.indexOf(target)+1) % alphabet.length];
+        if (target.includes(set[i])){
+          set[i] = alphabet[(alphabet.indexOf(set[i]) + 2) % alphabet.length];
         }
       }
     }
-    return { target, set, present };
+    return { target, pair: set, present };
   }
 
   function drawTrial(trial, fade=false){
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
-    ctx.fillStyle = "rgba(255,255,255,0.06)";
-    ctx.fillRect(20, 30, 160, 200);
+    drawPanelShell(ctx, 20, 24, 210, 212, "Target key");
+    drawSymbolPairPanel(ctx, trial.target, 34, 58, 182, 140, fade ? 0.22 : 1);
 
-    ctx.fillStyle = "rgba(229,231,235,0.92)";
-    ctx.font = "72px system-ui, Segoe UI, Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.globalAlpha = fade ? 0.18 : 1;
-    ctx.fillText(trial.target, 100, 130);
-    ctx.globalAlpha = 1;
+    drawPanelShell(ctx, 252, 24, canvas.width - 272, 212, "Candidate pair");
+    drawSymbolPairPanel(ctx, trial.pair, 280, 58, canvas.width - 328, 140, fade ? 0.22 : 1);
 
-    ctx.fillStyle = "rgba(255,255,255,0.04)";
-    ctx.fillRect(210, 30, canvas.width - 230, 200);
-
-    ctx.font = "56px system-ui, Segoe UI, Arial";
-    const gap = (canvas.width - 260) / cfg.setSize;
-    for (let i = 0; i < trial.set.length; i++){
-      const x = 240 + i * gap + gap/2;
-      ctx.fillText(trial.set[i], x, 130);
-    }
+    ctx.fillStyle = "rgba(169,182,214,0.9)";
+    ctx.font = "600 14px 'Segoe UI Variable', 'Aptos', sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText("Answer quickly: Present if either matching order is shown.", 26, 254);
   }
 
   function enableResponse(enabled){
@@ -474,7 +473,8 @@ function renderSymbolSearchBlock(mount, cfg, onDone){
   }
 
   function recordResponse(present){
-    if (!state.running || !state.current) return;
+    if (!state.running || !state.current || !state.awaitingResponse) return;
+    state.awaitingResponse = false;
     const rtMs = Math.max(0, performance.now() - state.lastStartMs);
     state.responses.push({ i: state.index, present, correct: (present === state.current.present), rtMs });
     status.textContent = `Trial ${state.index+1}/${cfg.length} recorded.`;
@@ -493,12 +493,14 @@ function renderSymbolSearchBlock(mount, cfg, onDone){
     for (state.index = 0; state.index < cfg.length; state.index++){
       if (state.cancelled) break;
 
-      const trial = genTrial();
+      const trial = cfg.trials?.[state.index] || genTrial();
       state.current = trial;
+      state.awaitingResponse = true;
       drawTrial(trial, false);
       state.lastStartMs = performance.now();
 
       await sleep(cfg.trialMs);
+      state.awaitingResponse = false;
       drawTrial(trial, true);
       await sleep(120);
     }
@@ -528,13 +530,13 @@ function renderSymbolSearchBlock(mount, cfg, onDone){
   }
   window.addEventListener("keydown", onKey);
 
-  drawTrial({ target:"●", set:Array(cfg.setSize).fill("■"), present:false }, true);
+  drawTrial({ target: cfg.keySymbols || FALLBACK_SPEED_SYMBOLS.slice(0, 2), pair: (cfg.keySymbols || FALLBACK_SPEED_SYMBOLS.slice(0, 2)).slice().reverse(), present:false }, true);
 
   return { cleanup(){ state.cancelled = true; window.removeEventListener("keydown", onKey); } };
 }
 
 function renderCodingBlock(mount, cfg, onDone){
-  const state = { running:false, cancelled:false, index:0, responses:[], lastStartMs:0, current:null };
+  const state = { running:false, cancelled:false, index:0, responses:[], lastStartMs:0, current:null, awaitingResponse:false };
 
   const wrap = document.createElement("div");
   wrap.className = "callout";
@@ -565,8 +567,13 @@ function renderCodingBlock(mount, cfg, onDone){
   const entries = Object.entries(cfg.keymap);
   key.innerHTML = `
     <div class="muted small">Key</div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
-      ${entries.map(([k,sym]) => `<div class="badge">${escapeHtml(k)} → ${escapeHtml(sym)}</div>`).join("")}
+    <div class="symbolKeyGrid">
+      ${entries.map(([sym, digit]) => `
+        <div class="symbolKeyCard">
+          <div class="symbolKeyGlyph">${symbolToSvg(sym, 56)}</div>
+          <div class="badge digitBadge">${escapeHtml(digit)}</div>
+        </div>
+      `).join("")}
     </div>
   `;
   area.appendChild(key);
@@ -586,49 +593,41 @@ function renderCodingBlock(mount, cfg, onDone){
   opts.style.marginTop = "12px";
   area.appendChild(opts);
 
-  let selected = null;
-  function drawTarget(sym, fade=false){
+  function drawTarget(symbol, fade=false){
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.fillStyle = "rgba(255,255,255,0.04)";
-    ctx.fillRect(20, 30, canvas.width-40, 140);
-    ctx.fillStyle = "rgba(229,231,235,0.92)";
-    ctx.font = "90px system-ui, Segoe UI, Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.globalAlpha = fade ? 0.20 : 1;
-    ctx.fillText(sym, canvas.width/2, 100);
-    ctx.globalAlpha = 1;
+    drawPanelShell(ctx, 20, 30, canvas.width - 40, 140, "Enter the digit that matches this symbol in the key");
+    drawSymbolCanvas(ctx, symbol, canvas.width / 2, 108, 38, { alpha: fade ? 0.24 : 1 });
   }
 
   function genTrial(){
-    const digits = Object.keys(cfg.keymap);
-    const d = digits[Math.floor(Math.random()*digits.length)];
-    return { digit: d, symbol: cfg.keymap[d] };
+    const symbols = Object.keys(cfg.keymap);
+    const symbol = symbols[Math.floor(Math.random() * symbols.length)];
+    return { symbol, digit: cfg.keymap[symbol] };
   }
 
   function enableOptions(enabled){
     [...opts.querySelectorAll(".option")].forEach(x => x.style.pointerEvents = enabled ? "auto" : "none");
   }
 
-  function recordResponse(symbol){
-    if (!state.running || !state.current) return;
+  function recordResponse(digit){
+    if (!state.running || !state.current || !state.awaitingResponse) return;
+    state.awaitingResponse = false;
     const rtMs = Math.max(0, performance.now() - state.lastStartMs);
-    const correct = (symbol === state.current.symbol);
-    state.responses.push({ i: state.index, symbol, correct, rtMs });
+    const correct = String(digit) === String(state.current.digit);
+    state.responses.push({ i: state.index, digit, correct, rtMs });
     status.textContent = `Trial ${state.index+1}/${cfg.length} recorded.`;
   }
 
   function buildOptions(){
     opts.innerHTML = "";
-    cfg.options.forEach((sym) => {
+    cfg.options.forEach((digit) => {
       const el = document.createElement("div");
-      el.className = "option";
-      el.textContent = sym;
+      el.className = "option symbolOption";
+      el.innerHTML = `<div class="symbolChoice"><span class="digitChoice">${escapeHtml(String(digit))}</span></div>`;
       el.addEventListener("click", () => {
-        selected = sym;
         [...opts.querySelectorAll(".option")].forEach(x => x.classList.remove("selected"));
         el.classList.add("selected");
-        recordResponse(sym);
+        recordResponse(digit);
       });
       opts.appendChild(el);
     });
@@ -642,19 +641,20 @@ function renderCodingBlock(mount, cfg, onDone){
 
     btnStart.disabled = true;
     enableOptions(true);
-    status.textContent = "Running… click the matching symbol.";
+    status.textContent = "Running… click the digit that matches the shown symbol.";
 
     for (state.index = 0; state.index < cfg.length; state.index++){
       if (state.cancelled) break;
-      selected = null;
       [...opts.querySelectorAll(".option")].forEach(x => x.classList.remove("selected"));
 
-      const trial = genTrial();
+      const trial = cfg.sequence?.[state.index] || genTrial();
       state.current = trial;
+      state.awaitingResponse = true;
       drawTarget(trial.symbol, false);
       state.lastStartMs = performance.now();
 
       await sleep(cfg.trialMs);
+      state.awaitingResponse = false;
       drawTarget(trial.symbol, true);
       await sleep(120);
     }
@@ -675,7 +675,7 @@ function renderCodingBlock(mount, cfg, onDone){
 
   buildOptions();
   enableOptions(false);
-  drawTarget("●", true);
+  drawTarget(Object.keys(cfg.keymap || {})[0] || "sigil_orbit", true);
 
   btnStart.addEventListener("click", run);
 
@@ -789,6 +789,52 @@ function drawMissing(ctx, x, y, w, h){
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText("?", x + w/2, y + h/2);
+}
+
+function drawPanelShell(ctx, x, y, w, h, label){
+  const gradient = ctx.createLinearGradient(x, y, x + w, y + h);
+  gradient.addColorStop(0, "rgba(255,255,255,0.10)");
+  gradient.addColorStop(1, "rgba(255,255,255,0.03)");
+  ctx.fillStyle = gradient;
+  ctx.strokeStyle = "rgba(255,255,255,0.12)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  roundRectPath(ctx, x, y, w, h, 22);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = "rgba(169,182,214,0.92)";
+  ctx.font = "600 13px 'Segoe UI Variable', 'Aptos', sans-serif";
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillText(label, x + 14, y + 22);
+}
+
+function drawSymbolPairPanel(ctx, pair, x, y, w, h, alpha=1){
+  const leftX = x + w * 0.28;
+  const rightX = x + w * 0.72;
+  const cy = y + h / 2;
+  drawSymbolCanvas(ctx, pair?.[0] || "sigil_orbit", leftX, cy, Math.min(w, h) * 0.18, { alpha });
+  drawSymbolCanvas(ctx, pair?.[1] || "sigil_beacon", rightX, cy, Math.min(w, h) * 0.18, { alpha });
+}
+
+function roundRectPath(ctx, x, y, w, h, r){
+  const rr = Math.max(0, Math.min(r, Math.min(w, h) / 2));
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+
+function shuffleCopy(arr){
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
 }
 
 function drawSymbolInCell(ctx, sym, x, y, w, h){

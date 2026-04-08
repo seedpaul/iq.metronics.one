@@ -51,14 +51,17 @@ function normalizeSeed(seed){
 
 export function buildPlan(mode='full', opts = {}){
   const isQuick = mode === 'quick';
+  const isSmoke = mode === 'smoke';
   const seed = normalizeSeed(opts.seed ?? Date.now());
 
   const sizes = {
-    fluid: isQuick ? 60 : 320,
-    verbal: isQuick ? 55 : 300,
-    quant: isQuick ? 55 : 300,
-    spatial: isQuick ? 40 : 170,
-    wm_digit: isQuick ? 18 : 60
+    fluid: isSmoke ? 12 : (isQuick ? 60 : 320),
+    verbal: isSmoke ? 12 : (isQuick ? 55 : 300),
+    quant: isSmoke ? 12 : (isQuick ? 55 : 300),
+    spatial: isSmoke ? 10 : (isQuick ? 40 : 170),
+    speed_symbol: 0,
+    speed_coding: 0,
+    wm_digit: isSmoke ? 6 : (isQuick ? 18 : 60)
   };
 
   const banks = buildBanks({ seed, sizes });
@@ -70,10 +73,12 @@ export function buildPlan(mode='full', opts = {}){
     spatial: deriveBlueprintTargets(banks.spatial)
   };
 
-  const symbolPages = buildSpeedSymbolSearchPages({ pages: isQuick ? 2 : 4, seed: seed ^ 0x51A5 });
-  const codingPages = buildSpeedCodingPages({ pages: isQuick ? 2 : 4, seed: seed ^ 0xC0D1 });
+  const symbolPages = buildSpeedSymbolSearchPages({ pages: isSmoke ? 1 : (isQuick ? 2 : 4), seed: seed ^ 0x51A5 });
+  const codingPages = buildSpeedCodingPages({ pages: isSmoke ? 1 : (isQuick ? 2 : 4), seed: seed ^ 0xC0D1 });
+  banks.speed_symbol = symbolPages;
+  banks.speed_coding = codingPages;
 
-  const attentionItems = buildAttentionItems();
+  const attentionItems = isSmoke ? buildAttentionItems().slice(0, 1) : buildAttentionItems();
 
   const nodes = [
     {
@@ -82,7 +87,7 @@ export function buildPlan(mode='full', opts = {}){
       subtestId: 'attention',
       title: 'Attention check',
       subtitle: 'Read and follow the instruction precisely',
-      timeSeconds: isQuick ? 40 : 45,
+      timeSeconds: isSmoke ? 20 : (isQuick ? 40 : 45),
       instructions: 'These quick items confirm you are paying attention. Please answer exactly as instructed.',
       items: attentionItems,
       excludeFromComposite: true
@@ -93,9 +98,9 @@ export function buildPlan(mode='full', opts = {}){
       subtestId: 'fluid',
       title: 'Fluid Reasoning',
       subtitle: 'Adaptive matrices and relational patterns',
-      timeSeconds: isQuick ? 6*60 : 9*60,
-      minItems: isQuick ? 10 : 14,
-      maxItems: isQuick ? 18 : 28,
+      timeSeconds: isSmoke ? 55 : (isQuick ? 6*60 : 9*60),
+      minItems: isSmoke ? 1 : (isQuick ? 10 : 14),
+      maxItems: isSmoke ? 1 : (isQuick ? 18 : 28),
       stopSem: 0.32,
       estimator: 'MAP',
       topK: 6,
@@ -109,9 +114,9 @@ export function buildPlan(mode='full', opts = {}){
       subtestId: 'verbal',
       title: 'Verbal Reasoning',
       subtitle: 'Analogies, definitions, and similarities',
-      timeSeconds: isQuick ? 5*60 : 8*60,
-      minItems: isQuick ? 10 : 14,
-      maxItems: isQuick ? 18 : 26,
+      timeSeconds: isSmoke ? 50 : (isQuick ? 5*60 : 8*60),
+      minItems: isSmoke ? 1 : (isQuick ? 10 : 14),
+      maxItems: isSmoke ? 1 : (isQuick ? 18 : 26),
       stopSem: 0.34,
       estimator: 'EAP',
       topK: 5,
@@ -125,9 +130,9 @@ export function buildPlan(mode='full', opts = {}){
       subtestId: 'quant',
       title: 'Quantitative Reasoning',
       subtitle: 'Number series and word problems',
-      timeSeconds: isQuick ? 5*60 : 8*60,
-      minItems: isQuick ? 10 : 14,
-      maxItems: isQuick ? 18 : 26,
+      timeSeconds: isSmoke ? 50 : (isQuick ? 5*60 : 8*60),
+      minItems: isSmoke ? 1 : (isQuick ? 10 : 14),
+      maxItems: isSmoke ? 1 : (isQuick ? 18 : 26),
       stopSem: 0.34,
       estimator: 'EAP',
       topK: 5,
@@ -141,9 +146,9 @@ export function buildPlan(mode='full', opts = {}){
       subtestId: 'wm',
       title: 'Working Memory',
       subtitle: 'Digit span (forward and backward)',
-      timeSeconds: isQuick ? 4*60 : 6*60,
+      timeSeconds: isSmoke ? 45 : (isQuick ? 4*60 : 6*60),
       instructions: 'Digits will appear briefly. Type them exactly. For backward trials, reverse the digits.',
-      items: banks.wm_digit
+      items: isSmoke ? banks.wm_digit.slice(0, 4) : banks.wm_digit
     },
     {
       id: 'speed_symbol',
@@ -151,7 +156,7 @@ export function buildPlan(mode='full', opts = {}){
       subtestId: 'speed_symbol',
       title: 'Processing Speed I',
       subtitle: 'Symbol search (yes/no matches)',
-      timeSeconds: isQuick ? 3*60 : 5*60,
+      timeSeconds: isSmoke ? 35 : (isQuick ? 3*60 : 5*60),
       instructions: 'Answer as many as you can quickly and accurately. Speed and accuracy both matter.',
       bank: symbolPages,
       speedConfig: { kind: 'symbol_search' }
@@ -162,7 +167,7 @@ export function buildPlan(mode='full', opts = {}){
       subtestId: 'speed_coding',
       title: 'Processing Speed II',
       subtitle: 'Coding (symbol + digit key)',
-      timeSeconds: isQuick ? 3*60 : 5*60,
+      timeSeconds: isSmoke ? 35 : (isQuick ? 3*60 : 5*60),
       instructions: 'Use the key to enter digits for each symbol. Work quickly; mistakes lower your score.',
       bank: codingPages,
       speedConfig: { kind: 'coding' }
@@ -173,9 +178,9 @@ export function buildPlan(mode='full', opts = {}){
       subtestId: 'spatial',
       title: 'Spatial Reasoning',
       subtitle: 'Mental rotation and matching',
-      timeSeconds: isQuick ? 4*60 : 7*60,
-      minItems: isQuick ? 8 : 12,
-      maxItems: isQuick ? 14 : 22,
+      timeSeconds: isSmoke ? 45 : (isQuick ? 4*60 : 7*60),
+      minItems: isSmoke ? 1 : (isQuick ? 8 : 12),
+      maxItems: isSmoke ? 1 : (isQuick ? 14 : 22),
       stopSem: 0.36,
       estimator: 'MAP',
       topK: 4,
@@ -186,7 +191,7 @@ export function buildPlan(mode='full', opts = {}){
   ];
 
   return {
-    id: isQuick ? 'quick' : 'full',
+    id: isSmoke ? 'smoke' : (isQuick ? 'quick' : 'full'),
     seed,
     nodes,
     banks

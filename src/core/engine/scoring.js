@@ -45,6 +45,50 @@ function mapThetaToScores(theta, sem, normPack){
   return { index, pct, ci };
 }
 
+function summarizeAdministration(subtestSummaries){
+  const domains = {};
+  let totalItems = 0;
+  let totalCorrect = 0;
+  let totalScored = 0;
+  let totalRtMs = 0;
+  let totalRtCount = 0;
+
+  for (const summary of subtestSummaries){
+    const responses = Array.isArray(summary?.responses) ? summary.responses : [];
+    const scored = responses.filter((entry) => Number.isFinite(entry?.x));
+    const timed = responses.filter((entry) => Number.isFinite(entry?.rtMs));
+    const correct = scored.filter((entry) => entry.x === 1).length;
+    const avgRtMs = timed.length
+      ? timed.reduce((sum, entry) => sum + entry.rtMs, 0) / timed.length
+      : null;
+
+    totalItems += responses.length;
+    totalCorrect += correct;
+    totalScored += scored.length;
+    totalRtMs += timed.reduce((sum, entry) => sum + entry.rtMs, 0);
+    totalRtCount += timed.length;
+
+    domains[summary.domain] = {
+      itemsAdministered: responses.length,
+      correctResponses: correct,
+      accuracy: scored.length ? correct / scored.length : null,
+      avgRtMs: avgRtMs != null ? round1(avgRtMs) : null,
+      theta: round3(summary.theta),
+      sem: round3(summary.sem)
+    };
+  }
+
+  return {
+    overview: {
+      domainsCompleted: Object.keys(domains).length,
+      itemsAdministered: totalItems,
+      accuracy: totalScored ? totalCorrect / totalScored : null,
+      avgRtMs: totalRtCount ? round1(totalRtMs / totalRtCount) : null
+    },
+    domains
+  };
+}
+
 export function buildReport({ ageYears, subtestSummaries, integrity, normPack=null }){
   // Age-adjusted thetas
   const domain = {};
@@ -73,6 +117,7 @@ export function buildReport({ ageYears, subtestSummaries, integrity, normPack=nu
 
   const fsiqSem = Math.sqrt(Object.values(domainSem).reduce((s,x)=>s+x*x,0) / Math.max(1,Object.values(domainSem).length)) * 0.75;
   const fsiqScores = mapThetaToScores(gTheta, fsiqSem, normPack);
+  const administration = summarizeAdministration(subtestSummaries);
 
   return {
     meta: {
@@ -93,6 +138,7 @@ export function buildReport({ ageYears, subtestSummaries, integrity, normPack=nu
       domains: mapRound3(domain),
       sem: mapRound3(domainSem)
     },
+    administration,
     integrity
   };
 }

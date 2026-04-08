@@ -34,6 +34,7 @@ export class CatSubtest{
     this.anchorAdministered = 0;
 
     this.familyCounts = {};
+    this.contentCounts = {};
 
     this.anchorSet = new Set(anchorItemIds ?? []);
     this.anchorPolicy = anchorPolicy ?? {};
@@ -68,6 +69,7 @@ export class CatSubtest{
     this.responses = [];
     this.administered = new Set();
     this.familyCounts = {};
+    this.contentCounts = {};
     this.anchorMiniRemaining = this.anchorMiniBlockN;
     this.adminAnchors = 0;
   }
@@ -81,6 +83,8 @@ export class CatSubtest{
     }
 
     this.familyCounts[item.family] = (this.familyCounts[item.family] ?? 0) + 1;
+    const contentTag = item.blueprint || item.raw?.meta?.kind || item.raw?.blueprint || item.family;
+    this.contentCounts[contentTag] = (this.contentCounts[contentTag] ?? 0) + 1;
 
     // Exposure accounting
     this.exposureStore?.bump(item.id);
@@ -101,13 +105,14 @@ export class CatSubtest{
   }
 
   _familyNeedScore(item){
-    // Content balancing: each family has a target proportion.
+    // Content balancing: align administered content tags with target proportions.
     const targets = this.config.familyTargets?.[this.domain] ?? null;
     if (!targets) return 0;
 
+    const contentTag = item.blueprint || item.raw?.meta?.kind || item.raw?.blueprint || item.family;
     const total = Math.max(1, this.responses.length);
-    const current = (this.familyCounts[item.family] ?? 0) / total;
-    const target = targets[item.family] ?? 0;
+    const current = (this.contentCounts[contentTag] ?? 0) / total;
+    const target = targets[contentTag] ?? 0;
 
     // positive when under target; negative when above
     return target - current;

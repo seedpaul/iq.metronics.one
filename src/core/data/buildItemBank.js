@@ -34,10 +34,14 @@ function mapFamily(item){
   const kind = item?.meta?.kind || item.blueprint || "";
   const domain = mapDomain(item.domain || item.subtestId || "");
 
-  if (domain === "Gf") return "matrix_reasoning";
+  if (domain === "Gf"){
+    if (kind === "series") return "sequential_reasoning";
+    if (kind === "analogy") return "analogical_transformation";
+    return "matrix_reasoning";
+  }
   if (domain === "Gv") return "mental_rotation";
   if (domain === "Gq"){
-    if (["ratio", "rate"].includes(kind)) return "ratio_reasoning";
+    if (["ratio", "rate", "percent"].includes(kind)) return "ratio_reasoning";
     if (kind === "algebra") return "algebraic_reasoning";
     if (kind === "comparison") return "quantitative_comparison";
     return "number_pattern";

@@ -16,7 +16,7 @@ const FALLBACK_SPEED_SYMBOLS = [
   "sigil_quartz"
 ];
 
-export function renderItem({ mount, item, onSelectionChanged }){
+export function renderItem({ mount, item, onSelectionChanged, practice = null }){
   mount.innerHTML = "";
   const t0 = nowMs();
 
@@ -24,9 +24,20 @@ export function renderItem({ mount, item, onSelectionChanged }){
   let blockResult = null;
   let cleanupFn = null;
   const optionList = Array.isArray(item.options) ? item.options : [];
+  const isFluidVisual = item.domain === "Gf" && item.stem?.type === "svg_stem" && optionList.length > 0;
+  const isSpatialVisual = item.domain === "Gv" && item.stem?.type === "svg_stem" && optionList.length > 0;
+  const isVisualSvgMcq = item.stem?.type === "svg_stem" && optionList.length > 0;
+
+  const layout = document.createElement("div");
+  layout.className = "itemRenderer";
+  if (isVisualSvgMcq) layout.classList.add("itemRendererVisual");
+  if (isFluidVisual) layout.classList.add("itemRendererFluid");
+  if (isSpatialVisual) layout.classList.add("itemRendererSpatial");
+  mount.appendChild(layout);
 
   const stim = document.createElement("div");
-  mount.appendChild(stim);
+  stim.className = isVisualSvgMcq ? "itemRendererStage" : "itemRendererStagePlain";
+  layout.appendChild(stim);
 
   if (item.stem?.type === "text_prompt"){
     stim.innerHTML = "";
@@ -122,7 +133,7 @@ export function renderItem({ mount, item, onSelectionChanged }){
     const block = renderSymbolSearchBlock(stim, item.stem, (result) => {
       blockResult = result;
       onSelectionChanged?.(true);
-    });
+    }, practice);
     cleanupFn = block.cleanup;
   }
 
@@ -130,7 +141,7 @@ export function renderItem({ mount, item, onSelectionChanged }){
     const block = renderCodingBlock(stim, { ...item.stem, options: item.stem.options || item.options }, (result) => {
       blockResult = result;
       onSelectionChanged?.(true);
-    });
+    }, practice);
     cleanupFn = block.cleanup;
   }
 
@@ -140,14 +151,20 @@ export function renderItem({ mount, item, onSelectionChanged }){
 
   if (!isBlock){
     const opts = document.createElement("div");
-    opts.className = "options";
+    if (isFluidVisual) opts.className = "options visualOptions fluidOptions";
+    else if (isSpatialVisual) opts.className = "options visualOptions spatialOptions";
+    else if (isVisualSvgMcq) opts.className = "options visualOptions";
+    else opts.className = "options";
 
     if (!optionList.length){
       opts.innerHTML = "<div class=\"muted small\">No options available.</div>";
     }else{
       optionList.forEach((opt, idx) => {
         const el = document.createElement("div");
-        el.className = "option";
+        if (isFluidVisual) el.className = "option fluidOption visualOptionCard";
+        else if (isSpatialVisual) el.className = "option spatialOption visualOptionCard";
+        else if (isVisualSvgMcq) el.className = "option visualOptionCard";
+        else el.className = "option";
         el.dataset.index = String(idx);
         el.tabIndex = 0;
         el.setAttribute("role", "button");
@@ -155,7 +172,13 @@ export function renderItem({ mount, item, onSelectionChanged }){
 
         if (typeof opt === "object"){
           if (opt.svg){
-            el.innerHTML = opt.svg;
+            if (isFluidVisual){
+              el.innerHTML = `<div class="fluidOptionInner"><div class="fluidOptionBadge">${String.fromCharCode(65 + idx)}</div>${opt.svg}</div>`;
+            }else if (isSpatialVisual || isVisualSvgMcq){
+              el.innerHTML = `<div class="visualOptionInner"><div class="fluidOptionBadge">${String.fromCharCode(65 + idx)}</div>${opt.svg}</div>`;
+            }else{
+              el.innerHTML = opt.svg;
+            }
           }else{
             el.innerHTML = symbolToSvg(opt, 92);
           }
@@ -184,7 +207,7 @@ export function renderItem({ mount, item, onSelectionChanged }){
       });
     }
 
-    mount.appendChild(opts);
+    layout.appendChild(opts);
   }
 
   return {
@@ -242,6 +265,26 @@ function blockCriterion(item){
 function scoreBlockToBinary(item, result){
   const criterion = blockCriterion(item);
   return (result.accuracy ?? 0) >= criterion ? 1 : 0;
+}
+
+export function summarizeBlockPerformance(totalTrials, responses){
+  const expectedTrials = Math.max(0, Number(totalTrials) || 0);
+  const answeredTrials = Array.isArray(responses) ? responses.length : 0;
+  const correctTrials = Array.isArray(responses) ? responses.filter((entry) => entry.correct).length : 0;
+  const omittedTrials = Math.max(0, expectedTrials - answeredTrials);
+  const accuracy = expectedTrials > 0 ? (correctTrials / expectedTrials) : 0;
+  const responseRate = expectedTrials > 0 ? (answeredTrials / expectedTrials) : 0;
+  const medianRtMs = median(Array.isArray(responses) ? responses.map((entry) => entry.rtMs) : []);
+
+  return {
+    trials: expectedTrials,
+    responded: answeredTrials,
+    correct: correctTrials,
+    omitted: omittedTrials,
+    accuracy,
+    responseRate,
+    medianRtMs
+  };
 }
 
 /* ----------------- Blocks ----------------- */
@@ -369,14 +412,10 @@ function renderNBackBlock(mount, cfg, onDone){
     enableResponse(false);
     btnStart.disabled = false;
 
-    const acc = state.responses.length
-      ? state.responses.filter(r => r.correct).length / state.responses.length
-      : 0;
+    const summary = summarizeBlockPerformance(state.trials.length, state.responses);
+    status.textContent = `Done. Accuracy ${(summary.accuracy*100).toFixed(1)}% • answered ${summary.responded}/${summary.trials} • median RT ${(summary.medianRtMs/1000).toFixed(2)}s`;
 
-    const medianRt = median(state.responses.map(r => r.rtMs));
-    status.textContent = `Done. Accuracy ${(acc*100).toFixed(1)}% • median RT ${(medianRt/1000).toFixed(2)}s`;
-
-    onDone?.({ trials: state.trials.length, responded: state.responses.length, accuracy: acc, medianRtMs: medianRt });
+    onDone?.(summary);
   }
 
   btnStart.addEventListener("click", run);
@@ -395,8 +434,8 @@ function renderNBackBlock(mount, cfg, onDone){
   return { cleanup(){ state.cancelled = true; window.removeEventListener("keydown", onKey); } };
 }
 
-function renderSymbolSearchBlock(mount, cfg, onDone){
-  const state = { running:false, cancelled:false, index:0, responses:[], lastStartMs:0, current:null, awaitingResponse:false };
+function renderSymbolSearchBlock(mount, cfg, onDone, practice){
+  const state = { stage:"idle", cancelled:false, index:0, responses:[], lastStartMs:0, current:null, awaitingResponse:false, pendingResolver:null, practicePassed:!!practice?.completed };
 
   const wrap = document.createElement("div");
   wrap.className = "callout";
@@ -407,33 +446,31 @@ function renderSymbolSearchBlock(mount, cfg, onDone){
       <div class="badge">set = ${cfg.setSize}</div>
       <div class="badge">time/trial = ${cfg.trialMs}ms</div>
     </div>
+    <div class="muted small" style="margin-top:8px">Select <strong>Present</strong> only if the candidate pair contains the exact same two symbols as the key pair, in either order.</div>
+    <div class="muted small" style="margin-top:6px">Practice is required once before the timed block starts.</div>
     <div class="divider"></div>
     <div id="ssArea"></div>
     <div class="divider"></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-      <button class="btn secondary" id="btnStartSS">Start block</button>
+      <button class="btn secondary" id="btnPracticeSS">Run practice</button>
+      <button class="btn secondary" id="btnStartSS" disabled>Start block</button>
       <button class="btn secondary" id="btnPresent" disabled>Present</button>
-      <button class="btn secondary" id="btnAbsent" disabled>Absent</button>
-      <span class="muted small" id="ssStatus">Not started.</span>
+      <button class="btn secondary" id="btnAbsent" disabled>Not present</button>
+      <span class="muted small" id="ssStatus">Run the two practice trials before the timed block starts.</span>
     </div>
   `;
   mount.appendChild(wrap);
 
   const area = wrap.querySelector("#ssArea");
+  const btnPractice = wrap.querySelector("#btnPracticeSS");
   const btnStart = wrap.querySelector("#btnStartSS");
   const btnP = wrap.querySelector("#btnPresent");
   const btnA = wrap.querySelector("#btnAbsent");
   const status = wrap.querySelector("#ssStatus");
 
-  const canvasWrap = document.createElement("div");
-  canvasWrap.className = "canvasWrap";
-  const canvas = document.createElement("canvas");
-  canvas.width = 760;
-  canvas.height = 260;
-  canvasWrap.appendChild(canvas);
-  area.appendChild(canvasWrap);
-
-  const ctx = canvas.getContext("2d");
+  const board = document.createElement("div");
+  board.className = "canvasWrap symbolSearchBoard";
+  area.appendChild(board);
 
   function genTrial(){
     const alphabet = FALLBACK_SPEED_SYMBOLS;
@@ -453,18 +490,19 @@ function renderSymbolSearchBlock(mount, cfg, onDone){
   }
 
   function drawTrial(trial, fade=false){
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-
-    drawPanelShell(ctx, 20, 24, 210, 212, "Target key");
-    drawSymbolPairPanel(ctx, trial.target, 34, 58, 182, 140, fade ? 0.22 : 1);
-
-    drawPanelShell(ctx, 252, 24, canvas.width - 272, 212, "Candidate pair");
-    drawSymbolPairPanel(ctx, trial.pair, 280, 58, canvas.width - 328, 140, fade ? 0.22 : 1);
-
-    ctx.fillStyle = "rgba(169,182,214,0.9)";
-    ctx.font = "600 14px 'Segoe UI Variable', 'Aptos', sans-serif";
-    ctx.textAlign = "left";
-    ctx.fillText("Answer quickly: Present if either matching order is shown.", 26, 254);
+    board.innerHTML = `
+      <div class="symbolSearchGrid">
+        <div class="symbolSearchPanel">
+          <div class="symbolSearchLabel">Target key</div>
+          <div class="symbolSearchGlyph${fade ? " faded" : ""}">${symbolToSvg(trial.target, 108)}</div>
+        </div>
+        <div class="symbolSearchPanel">
+          <div class="symbolSearchLabel">Candidate pair</div>
+          <div class="symbolSearchGlyph${fade ? " faded" : ""}">${symbolToSvg(trial.pair, 108)}</div>
+        </div>
+      </div>
+      <div class="symbolSearchHint">Respond Present only if both symbols match the key pair, in any order.</div>
+    `;
   }
 
   function enableResponse(enabled){
@@ -472,20 +510,111 @@ function renderSymbolSearchBlock(mount, cfg, onDone){
     btnA.disabled = !enabled;
   }
 
-  function recordResponse(present){
-    if (!state.running || !state.current || !state.awaitingResponse) return;
+  function syncPracticeUi(){
+    btnPractice.textContent = state.practicePassed ? "Review practice" : "Run practice";
+  }
+
+  function resolvePending(value){
+    const resolver = state.pendingResolver;
+    state.pendingResolver = null;
+    resolver?.(value);
+  }
+
+  function waitForInput(){
+    return new Promise((resolve) => {
+      state.pendingResolver = resolve;
+    });
+  }
+
+  function buildPracticeTrials(){
+    const keySymbols = cfg.keySymbols || FALLBACK_SPEED_SYMBOLS.slice(0, 2);
+    const distractor = FALLBACK_SPEED_SYMBOLS.find((symbol) => !keySymbols.includes(symbol)) || FALLBACK_SPEED_SYMBOLS[2];
+    return [
+      {
+        target: keySymbols,
+        pair: keySymbols.slice().reverse(),
+        present: true,
+        prompt: "Practice 1 of 2: this candidate pair is an exact match in reverse order."
+      },
+      {
+        target: keySymbols,
+        pair: [keySymbols[0], distractor],
+        present: false,
+        prompt: "Practice 2 of 2: one symbol changed, so this is not present."
+      }
+    ];
+  }
+
+  function resetToIdlePreview(message){
+    state.stage = "idle";
     state.awaitingResponse = false;
+    state.current = null;
+    enableResponse(false);
+    btnPractice.disabled = false;
+    btnStart.disabled = !state.practicePassed;
+    syncPracticeUi();
+    status.textContent = message || (state.practicePassed
+      ? "Practice already completed for this section. Start block when you are ready, or review practice again."
+      : "Run the two practice trials before the timed block starts.");
+    drawTrial({ target: cfg.keySymbols || FALLBACK_SPEED_SYMBOLS.slice(0, 2), pair: (cfg.keySymbols || FALLBACK_SPEED_SYMBOLS.slice(0, 2)).slice().reverse(), present: false }, true);
+  }
+
+  function recordResponse(present){
+    if (!state.current || !state.awaitingResponse || !["practice", "running"].includes(state.stage)) return;
+    state.awaitingResponse = false;
+
+    if (state.stage === "practice"){
+      resolvePending({ present, correct: present === state.current.present });
+      return;
+    }
+
     const rtMs = Math.max(0, performance.now() - state.lastStartMs);
     state.responses.push({ i: state.index, present, correct: (present === state.current.present), rtMs });
     status.textContent = `Trial ${state.index+1}/${cfg.length} recorded.`;
   }
 
+  async function runPractice(){
+    state.cancelled = false;
+    state.practicePassed = false;
+    state.stage = "practice";
+    btnPractice.disabled = true;
+    btnStart.disabled = true;
+    enableResponse(true);
+
+    const practiceTrials = buildPracticeTrials();
+    for (let index = 0; index < practiceTrials.length; index++){
+      const trial = practiceTrials[index];
+      let correct = false;
+
+      while (!correct){
+        if (state.cancelled) return;
+        state.current = trial;
+        state.awaitingResponse = true;
+        drawTrial(trial, false);
+        status.textContent = `${trial.prompt} Answer this untimed practice item correctly to continue.`;
+
+        const result = await waitForInput();
+        if (!result || state.cancelled) return;
+        correct = result.correct;
+        status.textContent = correct
+          ? `Practice ${index + 1}/${practiceTrials.length} correct.`
+          : "Not quite. Choose Present only when both symbols match the key pair, in any order.";
+        await sleep(correct ? 220 : 520);
+      }
+    }
+
+    state.practicePassed = true;
+    practice?.onComplete?.();
+    resetToIdlePreview("Practice complete. Start block when you are ready.");
+  }
+
   async function run(){
-    state.running = true;
+    state.stage = "running";
     state.cancelled = false;
     state.index = 0;
     state.responses = [];
 
+    btnPractice.disabled = true;
     btnStart.disabled = true;
     enableResponse(true);
     status.textContent = "Running… respond on each trial.";
@@ -505,38 +634,36 @@ function renderSymbolSearchBlock(mount, cfg, onDone){
       await sleep(120);
     }
 
-    state.running = false;
+    state.stage = "idle";
     enableResponse(false);
+    btnPractice.disabled = false;
     btnStart.disabled = false;
 
-    const acc = state.responses.length
-      ? state.responses.filter(r => r.correct).length / state.responses.length
-      : 0;
+    const summary = summarizeBlockPerformance(cfg.length, state.responses);
+    status.textContent = `Done. Accuracy ${(summary.accuracy*100).toFixed(1)}% • answered ${summary.responded}/${summary.trials} • median RT ${(summary.medianRtMs/1000).toFixed(2)}s`;
 
-    const medianRt = median(state.responses.map(r => r.rtMs));
-    status.textContent = `Done. Accuracy ${(acc*100).toFixed(1)}% • median RT ${(medianRt/1000).toFixed(2)}s`;
-
-    onDone?.({ trials: cfg.length, responded: state.responses.length, accuracy: acc, medianRtMs: medianRt });
+    onDone?.(summary);
   }
 
+  btnPractice.addEventListener("click", runPractice);
   btnStart.addEventListener("click", run);
   btnP.addEventListener("click", () => recordResponse(true));
   btnA.addEventListener("click", () => recordResponse(false));
 
   function onKey(e){
-    if (!state.running) return;
+    if (!state.awaitingResponse || !["practice", "running"].includes(state.stage)) return;
     if (e.key === "ArrowLeft") recordResponse(true);
     if (e.key === "ArrowRight") recordResponse(false);
   }
   window.addEventListener("keydown", onKey);
 
-  drawTrial({ target: cfg.keySymbols || FALLBACK_SPEED_SYMBOLS.slice(0, 2), pair: (cfg.keySymbols || FALLBACK_SPEED_SYMBOLS.slice(0, 2)).slice().reverse(), present:false }, true);
+  resetToIdlePreview();
 
-  return { cleanup(){ state.cancelled = true; window.removeEventListener("keydown", onKey); } };
+  return { cleanup(){ state.cancelled = true; resolvePending(null); window.removeEventListener("keydown", onKey); } };
 }
 
-function renderCodingBlock(mount, cfg, onDone){
-  const state = { running:false, cancelled:false, index:0, responses:[], lastStartMs:0, current:null, awaitingResponse:false };
+function renderCodingBlock(mount, cfg, onDone, practice){
+  const state = { stage:"idle", cancelled:false, index:0, responses:[], lastStartMs:0, current:null, awaitingResponse:false, pendingResolver:null, practicePassed:!!practice?.completed };
 
   const wrap = document.createElement("div");
   wrap.className = "callout";
@@ -546,17 +673,21 @@ function renderCodingBlock(mount, cfg, onDone){
       <div class="badge">trials = ${cfg.length}</div>
       <div class="badge">time/trial = ${cfg.trialMs}ms</div>
     </div>
+    <div class="muted small" style="margin-top:8px">Look up the symbol in the key, then select the digit paired with that symbol.</div>
+    <div class="muted small" style="margin-top:6px">Practice is required once before the timed block starts.</div>
     <div class="divider"></div>
     <div id="cdArea"></div>
     <div class="divider"></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-      <button class="btn secondary" id="btnStartCD">Start block</button>
-      <span class="muted small" id="cdStatus">Not started.</span>
+      <button class="btn secondary" id="btnPracticeCD">Run practice</button>
+      <button class="btn secondary" id="btnStartCD" disabled>Start block</button>
+      <span class="muted small" id="cdStatus">Run the practice items before the timed block starts.</span>
     </div>
   `;
   mount.appendChild(wrap);
 
   const area = wrap.querySelector("#cdArea");
+  const btnPractice = wrap.querySelector("#btnPracticeCD");
   const btnStart = wrap.querySelector("#btnStartCD");
   const status = wrap.querySelector("#cdStatus");
 
@@ -578,25 +709,34 @@ function renderCodingBlock(mount, cfg, onDone){
   `;
   area.appendChild(key);
 
-  const canvasWrap = document.createElement("div");
-  canvasWrap.className = "canvasWrap";
-  const canvas = document.createElement("canvas");
-  canvas.width = 520;
-  canvas.height = 200;
-  canvasWrap.appendChild(canvas);
-  area.appendChild(canvasWrap);
-
-  const ctx = canvas.getContext("2d");
+  const targetWrap = document.createElement("div");
+  targetWrap.className = "canvasWrap codingCanvasWrap codingTargetWrap";
+  const responseDock = document.createElement("div");
+  responseDock.className = "codingResponseDock";
+  responseDock.appendChild(targetWrap);
+  area.appendChild(responseDock);
 
   const opts = document.createElement("div");
-  opts.className = "options";
-  opts.style.marginTop = "12px";
-  area.appendChild(opts);
+  opts.className = "options codingOptions";
+  responseDock.appendChild(opts);
 
   function drawTarget(symbol, fade=false){
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    drawPanelShell(ctx, 20, 30, canvas.width - 40, 140, "Enter the digit that matches this symbol in the key");
-    drawSymbolCanvas(ctx, symbol, canvas.width / 2, 108, 38, { alpha: fade ? 0.24 : 1 });
+    targetWrap.innerHTML = `
+      <div class="codingTargetPanel">
+        <div class="codingTargetLabel">Enter the digit that matches this symbol in the key</div>
+        <div class="codingTargetGlyph${fade ? " faded" : ""}">${symbolToSvg(symbol, 126)}</div>
+      </div>
+    `;
+  }
+
+  function drawIdleState(){
+    targetWrap.innerHTML = `
+      <div class="codingTargetPanel idle">
+        <div class="codingTargetLabel">Enter the digit that matches this symbol in the key</div>
+        <div class="codingIdleTitle">Press Start block to begin timed coding trials.</div>
+        <div class="codingIdleText">Every live target will come directly from the key shown above.</div>
+      </div>
+    `;
   }
 
   function genTrial(){
@@ -609,9 +749,62 @@ function renderCodingBlock(mount, cfg, onDone){
     [...opts.querySelectorAll(".option")].forEach(x => x.style.pointerEvents = enabled ? "auto" : "none");
   }
 
-  function recordResponse(digit){
-    if (!state.running || !state.current || !state.awaitingResponse) return;
+  function syncPracticeUi(){
+    btnPractice.textContent = state.practicePassed ? "Review practice" : "Run practice";
+  }
+
+  function resolvePending(value){
+    const resolver = state.pendingResolver;
+    state.pendingResolver = null;
+    resolver?.(value);
+  }
+
+  function waitForInput(){
+    return new Promise((resolve) => {
+      state.pendingResolver = resolve;
+    });
+  }
+
+  function clearOptionSelection(){
+    [...opts.querySelectorAll(".option")].forEach(x => x.classList.remove("selected"));
+  }
+
+  function buildPracticeTrials(){
+    const unique = [];
+    const seen = new Set();
+    const source = Array.isArray(cfg.sequence) && cfg.sequence.length ? cfg.sequence : Object.entries(cfg.keymap).map(([symbol, digit]) => ({ symbol, digit }));
+    for (const entry of source){
+      if (!entry || seen.has(entry.symbol)) continue;
+      seen.add(entry.symbol);
+      unique.push({ symbol: entry.symbol, digit: entry.digit });
+      if (unique.length === Math.min(3, Object.keys(cfg.keymap).length)) break;
+    }
+    return unique;
+  }
+
+  function resetToIdleState(message){
+    state.stage = "idle";
     state.awaitingResponse = false;
+    state.current = null;
+    enableOptions(false);
+    btnPractice.disabled = false;
+    btnStart.disabled = !state.practicePassed;
+    syncPracticeUi();
+    status.textContent = message || (state.practicePassed
+      ? "Practice already completed for this section. Start block when you are ready, or review practice again."
+      : "Run the practice items before the timed block starts.");
+    drawIdleState();
+  }
+
+  function recordResponse(digit){
+    if (!state.current || !state.awaitingResponse || !["practice", "running"].includes(state.stage)) return;
+    state.awaitingResponse = false;
+
+    if (state.stage === "practice"){
+      resolvePending({ digit, correct: String(digit) === String(state.current.digit) });
+      return;
+    }
+
     const rtMs = Math.max(0, performance.now() - state.lastStartMs);
     const correct = String(digit) === String(state.current.digit);
     state.responses.push({ i: state.index, digit, correct, rtMs });
@@ -625,7 +818,7 @@ function renderCodingBlock(mount, cfg, onDone){
       el.className = "option symbolOption";
       el.innerHTML = `<div class="symbolChoice"><span class="digitChoice">${escapeHtml(String(digit))}</span></div>`;
       el.addEventListener("click", () => {
-        [...opts.querySelectorAll(".option")].forEach(x => x.classList.remove("selected"));
+        clearOptionSelection();
         el.classList.add("selected");
         recordResponse(digit);
       });
@@ -633,19 +826,56 @@ function renderCodingBlock(mount, cfg, onDone){
     });
   }
 
+  async function runPractice(){
+    state.cancelled = false;
+    state.practicePassed = false;
+    state.stage = "practice";
+    btnPractice.disabled = true;
+    btnStart.disabled = true;
+    enableOptions(true);
+
+    const practiceTrials = buildPracticeTrials();
+    for (let index = 0; index < practiceTrials.length; index++){
+      const trial = practiceTrials[index];
+      let correct = false;
+
+      while (!correct){
+        if (state.cancelled) return;
+        clearOptionSelection();
+        state.current = trial;
+        state.awaitingResponse = true;
+        drawTarget(trial.symbol, false);
+        status.textContent = `Practice ${index + 1}/${practiceTrials.length}: choose the digit that matches the shown symbol.`;
+
+        const result = await waitForInput();
+        if (!result || state.cancelled) return;
+        correct = result.correct;
+        status.textContent = correct
+          ? `Practice ${index + 1}/${practiceTrials.length} correct.`
+          : "Not quite. Check the key again and choose the matching digit.";
+        await sleep(correct ? 220 : 520);
+      }
+    }
+
+    state.practicePassed = true;
+    practice?.onComplete?.();
+    resetToIdleState("Practice complete. Start block when you are ready.");
+  }
+
   async function run(){
-    state.running = true;
+    state.stage = "running";
     state.cancelled = false;
     state.index = 0;
     state.responses = [];
 
+    btnPractice.disabled = true;
     btnStart.disabled = true;
     enableOptions(true);
     status.textContent = "Running… click the digit that matches the shown symbol.";
 
     for (state.index = 0; state.index < cfg.length; state.index++){
       if (state.cancelled) break;
-      [...opts.querySelectorAll(".option")].forEach(x => x.classList.remove("selected"));
+      clearOptionSelection();
 
       const trial = cfg.sequence?.[state.index] || genTrial();
       state.current = trial;
@@ -659,27 +889,39 @@ function renderCodingBlock(mount, cfg, onDone){
       await sleep(120);
     }
 
-    state.running = false;
+    state.stage = "idle";
     enableOptions(false);
+    btnPractice.disabled = false;
     btnStart.disabled = false;
 
-    const acc = state.responses.length
-      ? state.responses.filter(r => r.correct).length / state.responses.length
-      : 0;
+    const summary = summarizeBlockPerformance(cfg.length, state.responses);
+    status.textContent = `Done. Accuracy ${(summary.accuracy*100).toFixed(1)}% • answered ${summary.responded}/${summary.trials} • median RT ${(summary.medianRtMs/1000).toFixed(2)}s`;
 
-    const medianRt = median(state.responses.map(r => r.rtMs));
-    status.textContent = `Done. Accuracy ${(acc*100).toFixed(1)}% • median RT ${(medianRt/1000).toFixed(2)}s`;
-
-    onDone?.({ trials: cfg.length, responded: state.responses.length, accuracy: acc, medianRtMs: medianRt });
+    onDone?.(summary);
   }
 
   buildOptions();
   enableOptions(false);
-  drawTarget(Object.keys(cfg.keymap || {})[0] || "sigil_orbit", true);
+  drawIdleState();
 
+  btnPractice.addEventListener("click", runPractice);
   btnStart.addEventListener("click", run);
 
-  return { cleanup(){ state.cancelled = true; } };
+  function onKey(e){
+    if (!state.awaitingResponse || !["practice", "running"].includes(state.stage)) return;
+    const digit = String(e.key || "");
+    if (!cfg.options.includes(digit)) return;
+    const options = [...opts.querySelectorAll(".option")];
+    const idx = cfg.options.indexOf(digit);
+    clearOptionSelection();
+    if (options[idx]) options[idx].classList.add("selected");
+    recordResponse(digit);
+  }
+  window.addEventListener("keydown", onKey);
+
+  resetToIdleState();
+
+  return { cleanup(){ state.cancelled = true; resolvePending(null); window.removeEventListener("keydown", onKey); } };
 }
 
 /* ----------------- Canvas drawings ----------------- */

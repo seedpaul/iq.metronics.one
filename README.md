@@ -47,6 +47,7 @@ pipeline/                       # Python calibration/norm/DIF tools (unchanged)
 - Open `index.html`, run Quick mode, confirm no console errors.  
 - Verify downloads (JSON, CSV; long CSV/JSONL in Research Mode).  
 - Load/clear a norm pack; ensure status updates and baseline fallback works.  
+- Run `node scripts/validate-block-scoring.mjs` to verify timed block summaries penalize omissions and report completion metrics correctly.
 - Run `node scripts/validate-assessment.mjs` to verify `full`, `quick`, and `smoke` plans still build valid section banks, normalize sampled items, and complete a simulated end-to-end assessment run.  
 - Keep branding as `iq.metronics.one` in titles/README/UI chips.
 

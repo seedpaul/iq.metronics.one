@@ -36,6 +36,7 @@ const els = {
   metaLine: document.getElementById("metaLine"),
   qualityFlags: document.getElementById("qualityFlags"),
   timerValue: document.getElementById("timerValue"),
+  testInstructions: document.getElementById("testInstructions"),
   qTitle: document.getElementById("qTitle"),
   qPrompt: document.getElementById("qPrompt"),
   stimulus: document.getElementById("stimulus"),
@@ -53,6 +54,7 @@ const els = {
   labStatus: document.getElementById("labStatus"),
   labSummary: document.getElementById("labSummary"),
   labItemMeta: document.getElementById("labItemMeta"),
+  labInstructions: document.getElementById("labInstructions"),
   labTitle: document.getElementById("labTitle"),
   labPrompt: document.getElementById("labPrompt"),
   labStimulus: document.getElementById("labStimulus"),
@@ -78,9 +80,17 @@ const RESEARCH_KEY = "iq_metronics_research_mode";
 const LAB_ACCESS_KEY = "iq_metronics_lab_unlocked";
 const LAB_ACCESS_CODE = "metronics-lab";
 
+function normalizeLabAccessCode(value){
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "");
+}
+
 const state = {
   runSeed: null,
   running: false,
+  runPracticeState: {},
   currentResolver: null,
   currentItem: null,
   timerHandle: null,
@@ -96,6 +106,97 @@ const state = {
   labSession: null,
   labCleanup: null
 };
+
+function isSpeedPracticeStem(stemType){
+  return stemType === "symbol_search_block" || stemType === "coding_block";
+}
+
+function buildPracticeController(store, key, stemType){
+  if (!isSpeedPracticeStem(stemType) || !store || !key) return null;
+  return {
+    completed: !!store[key],
+    onComplete: () => {
+      store[key] = true;
+    }
+  };
+}
+
+function getQuestionPresentationMode(item, raw, useRenderer){
+  const stemType = item?.stem?.type || "";
+  if (["symbol_search_block", "coding_block", "n_back_block"].includes(stemType)) return "block";
+  if (useRenderer && stemType === "svg_stem" && ["Gf", "Gv"].includes(item?.domain)) return "visual";
+  if (raw?.type === "digitspan") return "recall";
+  return "default";
+}
+
+function applyQuestionPresentationMode({ shell, stimulus, answerArea }, mode){
+  const modes = ["questionModeDefault", "questionModeVisual", "questionModeBlock", "questionModeRecall"];
+  shell?.classList.remove(...modes);
+  stimulus?.classList.remove("stimulusVisual");
+  answerArea?.classList.remove("answerAreaVisual", "answerAreaBlock");
+
+  if (mode === "visual"){
+    shell?.classList.add("questionModeVisual");
+    stimulus?.classList.add("stimulusVisual");
+    answerArea?.classList.add("answerAreaVisual");
+    return;
+  }
+
+  if (mode === "block"){
+    shell?.classList.add("questionModeBlock");
+    answerArea?.classList.add("answerAreaBlock");
+    return;
+  }
+
+  if (mode === "recall"){
+    shell?.classList.add("questionModeRecall");
+    return;
+  }
+
+  shell?.classList.add("questionModeDefault");
+}
+
+function syncScreenViewportHeight(screenEl){
+  if (!screenEl) return;
+  if (screenEl.classList.contains("hidden")){
+    screenEl.style.removeProperty("--screen-fit-height");
+    return;
+  }
+  const rect = screenEl.getBoundingClientRect();
+  const availableHeight = Math.max(340, Math.floor(window.innerHeight - Math.max(0, rect.top) - 16));
+  screenEl.style.setProperty("--screen-fit-height", `${availableHeight}px`);
+}
+
+function fitQuestionShellToViewport(screenEl, shellEl){
+  if (!screenEl || !shellEl || screenEl.classList.contains("hidden")) return;
+
+  syncScreenViewportHeight(screenEl);
+  shellEl.classList.remove("questionShellCompact", "questionShellTight");
+
+  const screenRect = screenEl.getBoundingClientRect();
+  const shellRect = shellEl.getBoundingClientRect();
+  const availableHeight = Math.max(260, Math.floor(screenRect.bottom - shellRect.top - 8));
+
+  if (shellEl.scrollHeight <= availableHeight) return;
+  shellEl.classList.add("questionShellCompact");
+
+  if (shellEl.scrollHeight <= availableHeight) return;
+  shellEl.classList.add("questionShellTight");
+}
+
+function scheduleQuestionLayoutFit(screenEl, shellEl){
+  if (!screenEl || !shellEl) return;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      fitQuestionShellToViewport(screenEl, shellEl);
+    });
+  });
+}
+
+function refreshVisibleScreenLayout(){
+  scheduleQuestionLayoutFit(els.test, els.answerArea?.closest(".questionShell"));
+  scheduleQuestionLayoutFit(els.lab, els.labAnswerArea?.closest(".questionShell"));
+}
 
 function loadHistory(){
   try{
@@ -165,6 +266,7 @@ function showScreen(which){
   els.test.classList.toggle("hidden", which !== "test");
   els.lab?.classList.toggle("hidden", which !== "lab");
   els.results.classList.toggle("hidden", which !== "results");
+  refreshVisibleScreenLayout();
 }
 
 function loadLabAccess(){
@@ -184,9 +286,11 @@ function updateLabGateStatus(message){
 }
 
 function unlockLab(){
-  const entered = els.labPassword?.value?.trim() || "";
-  if (entered !== LAB_ACCESS_CODE){
-    updateLabGateStatus("Incorrect access code. This is only a local gate for the QA tools.");
+  const entered = normalizeLabAccessCode(els.labPassword?.value);
+  const expected = normalizeLabAccessCode(LAB_ACCESS_CODE);
+  if (!entered || entered !== expected){
+    updateLabGateStatus("Incorrect access code. Try 'metronics-lab' (case-insensitive; spaces and dashes are ignored).",
+    );
     return;
   }
   state.labUnlocked = true;
@@ -343,10 +447,15 @@ function renderPrompt(item){
   els.qTitle.textContent = item.title || item.domain || "Item";
   if (item.type === "digitspan"){
     const dir = item.direction === "backward" ? "Backward" : "Forward";
-    els.qPrompt.textContent = `${dir} digit span. Remember the digits, then type them.`;
+    els.qPrompt.textContent = item.prompt || `${dir} digit span. Memorize the digits. After they disappear, type them ${item.direction === "backward" ? "in reverse order" : "in the same order"}.`;
   }else{
     els.qPrompt.textContent = item.prompt || "Respond to continue.";
   }
+}
+
+function setInstructionBanner(el, text){
+  if (!el) return;
+  el.textContent = text || "Read the section instructions before answering.";
 }
 
 function renderStimulus(item){
@@ -379,8 +488,8 @@ function prepareDigitSpanRecall(item, input, onReady){
   const box = els.stimulus.firstElementChild;
   const delayMs = Math.max(600, Number(item.showMs) || 1200);
   const recallPrompt = item.direction === "backward"
-    ? "Digits hidden. Type them in reverse order."
-    : "Digits hidden. Type them in order.";
+    ? "Digits hidden. Type the full sequence in reverse order."
+    : "Digits hidden. Type the full sequence in the same order shown.";
 
   const timeoutId = setTimeout(() => {
     if (box){
@@ -435,13 +544,19 @@ function renderOptions(item, onSelect){
   els.answerArea.appendChild(opts);
 }
 
-function renderInputField(placeholder, onInput){
+function renderInputField(placeholder, onInput, onSubmit){
   els.answerArea.innerHTML = "";
   const input = document.createElement("input");
   input.className = "textInput";
   input.placeholder = placeholder;
   input.autocomplete = "off";
   input.addEventListener("input", () => onInput(input.value));
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter"){
+      e.preventDefault();
+      onSubmit?.(input.value);
+    }
+  });
   els.answerArea.appendChild(input);
   input.focus();
   return input;
@@ -456,7 +571,7 @@ function renderLabPrompt(item){
   els.labTitle.textContent = item.title || item.domain || "Lab item";
   if (item.type === "digitspan"){
     const dir = item.direction === "backward" ? "Backward" : "Forward";
-    els.labPrompt.textContent = `${dir} digit span. Remember the digits, then type them.`;
+    els.labPrompt.textContent = item.prompt || `${dir} digit span. Memorize the digits. After they disappear, type them ${item.direction === "backward" ? "in reverse order" : "in the same order"}.`;
   }else{
     els.labPrompt.textContent = item.prompt || "Respond to continue.";
   }
@@ -490,8 +605,8 @@ function prepareLabDigitSpanRecall(item, input, onReady){
   const box = els.labStimulus.firstElementChild;
   const delayMs = Math.max(600, Number(item.showMs) || 1200);
   const prompt = item.direction === "backward"
-    ? "Digits hidden. Type them in reverse order."
-    : "Digits hidden. Type them in order.";
+    ? "Digits hidden. Type the full sequence in reverse order."
+    : "Digits hidden. Type the full sequence in the same order shown.";
 
   const timeoutId = setTimeout(() => {
     if (box){
@@ -541,16 +656,26 @@ function renderLabOptions(item, onSelect){
   els.labAnswerArea.appendChild(opts);
 }
 
-function renderLabInput(placeholder, onInput){
+function renderLabInput(placeholder, onInput, onSubmit){
   els.labAnswerArea.innerHTML = "";
   const input = document.createElement("input");
   input.className = "textInput";
   input.placeholder = placeholder;
   input.autocomplete = "off";
   input.addEventListener("input", () => onInput(input.value));
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter"){
+      e.preventDefault();
+      onSubmit?.(input.value);
+    }
+  });
   els.labAnswerArea.appendChild(input);
   input.focus();
   return input;
+}
+
+function hasTextResponse(response){
+  return !!(response && typeof response.value === "string" && response.value.trim().length);
 }
 
 function makeLocalRng(seed){
@@ -640,10 +765,14 @@ function updateLabStatus(){
     ? Math.round(scored.reduce((sum, entry) => sum + (Number(entry.rtMs) || 0), 0) / scored.length)
     : null;
   els.labMeta.textContent = `${session.node.title} · seed ${session.seed}`;
-  els.labStatus.textContent = `Section ${session.node.title} · item ${session.index + 1} of ${session.items.length} · responses ${responses.length}`;
+  const availabilityNote = session.availableCount < session.requestedCount
+    ? ` Requested ${session.requestedCount}, but only ${session.availableCount} item${session.availableCount === 1 ? " was" : "s were"} available in this section.`
+    : "";
+  els.labStatus.textContent = `Section ${session.node.title} · item ${session.index + 1} of ${session.items.length} · responses ${responses.length}.${availabilityNote}`;
   if (els.labSummary){
     els.labSummary.innerHTML = [
       { label: "Loaded", value: `${session.items.length} items` },
+      { label: "Available", value: `${session.availableCount} total` },
       { label: "Answered", value: `${responses.length}/${session.items.length}` },
       { label: "Accuracy", value: scored.length ? `${Math.round((correct / scored.length) * 100)}%` : "--" },
       { label: "Avg RT", value: avgRtMs != null ? `${(avgRtMs / 1000).toFixed(2)}s` : "--" }
@@ -686,9 +815,12 @@ function buildLabSession(){
     node,
     sectionId,
     seed,
+    requestedCount,
+    availableCount: sourcePool.length,
     items,
     index: 0,
-    responses: {}
+    responses: {},
+    practiceState: {}
   };
 
   showScreen("lab");
@@ -717,6 +849,8 @@ function renderLabItem(){
   const isBlockStem = ["n_back_block", "symbol_search_block", "coding_block"].includes(stemType);
   const hasRendererOptions = Array.isArray(item?.options) && item.options.length > 0;
   const useRenderer = stemType && (isBlockStem || hasRendererOptions);
+  const labShell = els.labAnswerArea?.closest(".questionShell");
+  applyQuestionPresentationMode({ shell: labShell, stimulus: els.labStimulus, answerArea: els.labAnswerArea }, getQuestionPresentationMode(item, raw, useRenderer));
 
   renderLabPrompt(raw);
   if (useRenderer && stemType !== "text_prompt"){
@@ -726,6 +860,7 @@ function renderLabItem(){
     renderLabStimulus(raw);
   }
 
+  setInstructionBanner(els.labInstructions, session.node.instructions || "Answer the current item.");
   els.labHelpText.textContent = session.node.instructions || "Answer the current item.";
   els.labFeedback.innerHTML = formatLabFeedback(session.responses[session.index], raw);
   renderLabItemMeta(item);
@@ -740,10 +875,12 @@ function renderLabItem(){
 
   if (useRenderer){
     els.labAnswerArea.innerHTML = "";
+    const practiceKey = `${session.sectionId}:${stemType}`;
     renderer = renderItem({
       mount: els.labAnswerArea,
       item,
-      onSelectionChanged: (ready) => { els.btnLabSubmit.disabled = !ready; }
+      onSelectionChanged: (ready) => { els.btnLabSubmit.disabled = !ready; },
+      practice: buildPracticeController(session.practiceState, practiceKey, stemType)
     });
     state.labCleanup = () => renderer.cleanup?.();
   }else{
@@ -761,10 +898,14 @@ function renderLabItem(){
       els.labAnswerArea.appendChild(yes);
       els.labAnswerArea.appendChild(no);
     }else if (raw?.type === "speed_coding" || raw?.type === "digitspan"){
+      const submitFromInput = () => {
+        if (!hasTextResponse(fallbackResponse)) return;
+        els.btnLabSubmit.onclick?.();
+      };
       const input = renderLabInput(raw.type === "speed_coding" ? "Enter the digits" : "Memorize the digits first", (val) => {
         fallbackResponse = { value: val };
         els.btnLabSubmit.disabled = !(val && val.trim().length);
-      });
+      }, submitFromInput);
       if (raw.type === "digitspan"){
         input.disabled = true;
         els.labHelpText.textContent = "Memorize the digits before typing.";
@@ -797,6 +938,8 @@ function renderLabItem(){
     els.btnLabSubmit.disabled = true;
     updateLabStatus();
   };
+
+  scheduleQuestionLayoutFit(els.lab, labShell);
 }
 
 function scoreItem(item, response){
@@ -836,10 +979,13 @@ function presentItemUI(ctx){
 
     els.testPill.textContent = node.title || node.id || "Test";
     els.metaLine.textContent = node.subtitle || node.mode || "";
+  setInstructionBanner(els.testInstructions, node.instructions || "Respond to continue.");
     const stemType = item?.stem?.type || "";
     const isBlockStem = ["n_back_block","symbol_search_block","coding_block"].includes(stemType);
     const hasRendererOptions = Array.isArray(item?.options) && item.options.length > 0;
     const useRenderer = stemType && (isBlockStem || hasRendererOptions);
+    const testShell = els.answerArea?.closest(".questionShell");
+    applyQuestionPresentationMode({ shell: testShell, stimulus: els.stimulus, answerArea: els.answerArea }, getQuestionPresentationMode(item, raw, useRenderer));
 
     renderPrompt(raw || item);
     if (useRenderer && stemType !== "text_prompt"){
@@ -861,10 +1007,12 @@ function presentItemUI(ctx){
 
     if (useRenderer){
       els.answerArea.innerHTML = "";
+      const practiceKey = `${node.id}:${stemType}`;
       renderer = renderItem({
         mount: els.answerArea,
         item,
-        onSelectionChanged: (ready) => { els.btnNext.disabled = !ready; }
+        onSelectionChanged: (ready) => { els.btnNext.disabled = !ready; },
+        practice: buildPracticeController(state.runPracticeState, practiceKey, stemType)
       });
       state.currentCleanup = () => renderer.cleanup?.();
     }else{
@@ -883,11 +1031,15 @@ function presentItemUI(ctx){
         els.answerArea.appendChild(no);
       }else if (raw?.type === "speed_coding" || raw?.type === "digitspan"){
         const placeholder = raw.type === "speed_coding" ? "Enter the digits" : "Memorize the digits first";
+        const submitFromInput = () => {
+          if (!hasTextResponse(fallbackResponse)) return;
+          els.btnNext.onclick?.();
+        };
         const input = renderInputField(placeholder, (val) => {
           fallbackResponse = { value: val };
           els.btnNext.disabled = !(val && val.trim().length);
           if (val && val.trim().length) enableNext();
-        });
+        }, submitFromInput);
         if (raw.type === "digitspan"){
           input.disabled = true;
           els.helpText.textContent = "Memorize the digits before typing.";
@@ -909,6 +1061,8 @@ function presentItemUI(ctx){
       }
     }
 
+    scheduleQuestionLayoutFit(els.test, testShell);
+
     els.btnNext.onclick = () => {
       const rtMs = Math.max(0, performance.now() - responseStartedAt);
       if (renderer){
@@ -925,6 +1079,7 @@ function presentItemUI(ctx){
 async function startRun(mode){
   if (state.running || !els.agree?.checked) return;
   state.running = true;
+  state.runPracticeState = {};
   state.runAborted = false;
   state.lastExports = null;
   syncStartButtons();
@@ -1089,6 +1244,7 @@ function clearNorm(){
 }
 
 function wireEvents(){
+  window.addEventListener("resize", refreshVisibleScreenLayout);
   els.agree?.addEventListener("change", () => {
     syncStartButtons();
   });
@@ -1096,6 +1252,12 @@ function wireEvents(){
   els.btnQuick?.addEventListener("click", () => startRun("quick"));
   els.btnSmoke?.addEventListener("click", () => startRun("smoke"));
   els.btnLabUnlock?.addEventListener("click", unlockLab);
+  els.labPassword?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter"){
+      e.preventDefault();
+      unlockLab();
+    }
+  });
   els.btnLabOpen?.addEventListener("click", buildLabSession);
   els.btnLabLoad?.addEventListener("click", buildLabSession);
   els.btnLabClose?.addEventListener("click", () => {
@@ -1145,6 +1307,7 @@ function init(){
   wireEvents();
   loadNormPack();
   loadResearchMode();
+  refreshVisibleScreenLayout();
 }
 
 init();

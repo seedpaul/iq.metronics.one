@@ -7,7 +7,7 @@ function buildAttentionItems(){
       id: 'ATT1',
       type: 'mcq',
       title: 'Attention check',
-      prompt: 'To confirm you are reading carefully, select the option labeled "Always".',
+      prompt: 'This is an attention check. Select the option labeled "Always".',
       choices: ['Always','Never','Sometimes','Rarely'],
       answer: 'Always',
       a: 1.0, b: -3,
@@ -17,7 +17,7 @@ function buildAttentionItems(){
       id: 'ATT2',
       type: 'mcq',
       title: 'Follow the instruction',
-      prompt: 'Please choose option 4 for this item.',
+      prompt: 'This is an attention check. Choose option 4 for this item.',
       choices: ['1','2','3','4'],
       answer: '4',
       a: 1.0, b: -2,
@@ -88,7 +88,7 @@ export function buildPlan(mode='full', opts = {}){
       title: 'Attention check',
       subtitle: 'Read and follow the instruction precisely',
       timeSeconds: isSmoke ? 20 : (isQuick ? 40 : 45),
-      instructions: 'These quick items confirm you are paying attention. Please answer exactly as instructed.',
+      instructions: 'These quick items check attention. Read the instruction carefully and select exactly the requested answer.',
       items: attentionItems,
       excludeFromComposite: true
     },
@@ -105,7 +105,7 @@ export function buildPlan(mode='full', opts = {}){
       estimator: 'MAP',
       topK: 6,
       blueprint: blueprint.fluid,
-      instructions: 'Choose the option that best completes the pattern. Work steadily. Avoid random guessing.',
+      instructions: 'Look for the rule or relationship shown in the figures. Choose the one option that correctly completes the pattern.',
       bank: banks.fluid
     },
     {
@@ -121,7 +121,7 @@ export function buildPlan(mode='full', opts = {}){
       estimator: 'EAP',
       topK: 5,
       blueprint: blueprint.verbal,
-      instructions: 'Answer as precisely as you can. If unsure, make your best choice.',
+      instructions: 'Read each question carefully and choose the single best answer based on word meaning, analogy, category, or logic.',
       bank: banks.verbal
     },
     {
@@ -137,7 +137,7 @@ export function buildPlan(mode='full', opts = {}){
       estimator: 'EAP',
       topK: 5,
       blueprint: blueprint.quant,
-      instructions: 'No calculator. Use scratch paper if desired. Focus on patterns and constraints.',
+      instructions: 'No calculator. Read each problem carefully, then choose the single best answer using arithmetic, patterns, or proportional reasoning.',
       bank: banks.quant
     },
     {
@@ -147,7 +147,7 @@ export function buildPlan(mode='full', opts = {}){
       title: 'Working Memory',
       subtitle: 'Digit span (forward and backward)',
       timeSeconds: isSmoke ? 45 : (isQuick ? 4*60 : 6*60),
-      instructions: 'Digits will appear briefly. Type them exactly. For backward trials, reverse the digits.',
+      instructions: 'Digits will appear briefly and then disappear. After they disappear, type them exactly as instructed. Backward trials must be entered in reverse order.',
       items: isSmoke ? banks.wm_digit.slice(0, 4) : banks.wm_digit
     },
     {
@@ -157,7 +157,7 @@ export function buildPlan(mode='full', opts = {}){
       title: 'Processing Speed I',
       subtitle: 'Symbol search (yes/no matches)',
       timeSeconds: isSmoke ? 35 : (isQuick ? 3*60 : 5*60),
-      instructions: 'Answer as many as you can quickly and accurately. Speed and accuracy both matter.',
+      instructions: 'For each trial, answer quickly but only choose Present when the candidate pair contains the exact same two symbols as the key pair.',
       bank: symbolPages,
       speedConfig: { kind: 'symbol_search' }
     },
@@ -168,7 +168,7 @@ export function buildPlan(mode='full', opts = {}){
       title: 'Processing Speed II',
       subtitle: 'Coding (symbol + digit key)',
       timeSeconds: isSmoke ? 35 : (isQuick ? 3*60 : 5*60),
-      instructions: 'Use the key to enter digits for each symbol. Work quickly; mistakes lower your score.',
+      instructions: 'Use the key to convert the shown symbol into its matching digit. Respond with the digit, not the symbol name, and work quickly without guessing.',
       bank: codingPages,
       speedConfig: { kind: 'coding' }
     },
@@ -185,7 +185,7 @@ export function buildPlan(mode='full', opts = {}){
       estimator: 'MAP',
       topK: 4,
       blueprint: blueprint.spatial,
-      instructions: 'Choose the option that matches the target after rotation (mirror images do not match unless stated).',
+      instructions: 'Choose the option showing the same marked shape after rotation only. Mirror images do not count as matches.',
       bank: banks.spatial
     }
   ];

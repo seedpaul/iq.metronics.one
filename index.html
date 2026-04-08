@@ -10,6 +10,9 @@
   <meta property="og:description" content="Client-side adaptive assessment with clear uncertainty, research exports, and optional norm packs." />
   <meta property="og:url" content="https://iq.metronics.one" />
   <link rel="icon" href="data:," />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -25,90 +28,144 @@
   <main class="container">
     <section id="screen-intro" class="card landingShell">
       <div class="landingHero">
-        <div class="landingEyebrow">Adaptive cognitive self-tracking</div>
-        <h2 class="landingTitle">Pick the long test or the short test.</h2>
-        <p class="landingLead">
-          Private, client-side cognitive testing with two default paths: full baseline or quick check-in.
-        </p>
+        <div class="landingGrid">
+          <div class="landingNarrative">
+            <div class="landingEyebrow">Adaptive cognitive self-tracking</div>
+            <h2 class="landingTitle">Pick the long test or the short test.</h2>
+            <p class="landingLead">
+              Private, client-side cognitive testing with two default paths: full baseline or quick check-in.
+            </p>
 
-        <div class="landingChoiceNotes">
-          <div class="choiceNote">
-            <strong>Long test</strong>
-            <span>25 to 35 min · fullest estimate</span>
+            <div class="landingMetrics" aria-label="Product highlights">
+              <div class="landingMetric">
+                <strong>Client-side</strong>
+                <span>Runs locally in your browser by default.</span>
+              </div>
+              <div class="landingMetric">
+                <strong>Adaptive</strong>
+                <span>Mixed sections tuned for fast baseline tracking.</span>
+              </div>
+              <div class="landingMetric">
+                <strong>Transparent</strong>
+                <span>Exports, QA tools, and uncertainty are built in.</span>
+              </div>
+            </div>
           </div>
-          <div class="choiceNote">
-            <strong>Short test</strong>
-            <span>10 to 12 min · faster check-in</span>
+
+          <div class="landingLaunchpad">
+            <div class="launchpadCard">
+              <div class="launchpadHeader">
+                <div class="launchpadEyebrow">Choose a mode</div>
+                <h3 class="launchpadTitle">Start from here</h3>
+                <p class="launchpadLead">Pick the fuller baseline or the faster check-in, then start once consent is checked.</p>
+              </div>
+
+              <div class="landingChoiceNotes">
+                <div class="choiceNote">
+                  <strong>Long test</strong>
+                  <span>25 to 35 min · fullest estimate</span>
+                </div>
+                <div class="choiceNote">
+                  <strong>Short test</strong>
+                  <span>10 to 12 min · faster check-in</span>
+                </div>
+              </div>
+
+              <label class="consentCard chk">
+                <input id="agree" type="checkbox" />
+                <span>
+                  <strong>I understand this is non-clinical and I want to continue.</strong>
+                  <span class="consentSub">Not diagnostic. Runs stay on this device unless you explicitly export them.</span>
+                </span>
+              </label>
+
+              <div class="row actionCluster landingActions modeActions">
+                <button id="btnStart" class="btn primary heroStart" disabled>Start long test</button>
+                <button id="btnQuick" class="btn heroStart secondaryStart" disabled>Start short test</button>
+              </div>
+            </div>
           </div>
-        </div>
-
-        <label class="consentCard chk">
-          <input id="agree" type="checkbox" />
-          <span>
-            <strong>I understand this is non-clinical and I want to continue.</strong>
-            <span class="consentSub">Not diagnostic. Runs stay on this device unless you explicitly export them.</span>
-          </span>
-        </label>
-
-        <div class="row actionCluster landingActions modeActions">
-          <button id="btnStart" class="btn primary heroStart" disabled>Start long test</button>
-          <button id="btnQuick" class="btn heroStart secondaryStart" disabled>Start short test</button>
         </div>
 
         <details class="details advancedPanel">
-          <summary><strong>Advanced options</strong> <span class="muted">for calibration, QA, and research use</span></summary>
-          <div class="advancedGrid">
-            <div class="settingCard tuningCard">
-              <label for="seedInput" class="lbl">Reproducibility seed</label>
-              <input id="seedInput" class="textInput" type="text" placeholder="Leave blank for a random seed" />
-              <div class="hint">Reuse a seed for debugging, QA, or controlled repeat sessions.</div>
-            </div>
-
-            <div class="settingCard researchCard">
-              <label class="chk tuningToggle">
-                <input id="researchMode" type="checkbox" />
-                <span>Enable Research Mode</span>
-              </label>
-              <div class="hint">Unlocks extended exports and event logs. Nothing leaves the browser unless you download it.</div>
-            </div>
-
-            <div class="settingCard normCard">
-              <label for="normFile" class="lbl">Norm pack</label>
-              <input id="normFile" class="file" type="file" accept="application/json" />
-              <div class="row">
-                <button id="btnLoadNorm" class="btn">Load norm pack</button>
-                <button id="btnClearNorm" class="btn">Clear custom norm pack</button>
+          <summary><strong>Advanced tools</strong> <span class="muted">calibration, QA, research, and local maintenance</span></summary>
+          <div class="advancedIntro">These controls are for repeatability, QA passes, exports, and local browser maintenance. They are secondary to the main start flow above.</div>
+          <div class="advancedSections">
+            <section class="advancedSection">
+              <div class="advancedSectionHeader">
+                <div class="advancedSectionEyebrow">Session</div>
+                <h3>Run setup</h3>
               </div>
-              <div id="normStatus" class="muted small"></div>
-            </div>
+              <div class="advancedGrid advancedGridSingle">
+                <div class="settingCard tuningCard">
+                  <label for="seedInput" class="lbl">Reproducibility seed</label>
+                  <input id="seedInput" class="textInput" type="text" placeholder="Leave blank for a random seed" />
+                  <div class="hint">Reuse a seed for debugging, QA, or controlled repeat sessions.</div>
+                </div>
 
-            <div class="settingCard smokeCard">
-              <label class="lbl">Testing pass</label>
-              <div class="hint">Very short run that touches each section so you can QA the flow quickly.</div>
-              <div class="row">
-                <button id="btnSmoke" class="btn smokeBtn" disabled title="Check the non-clinical consent box above to enable this.">Run super short test</button>
+                <div class="settingCard researchCard">
+                  <label class="chk tuningToggle">
+                    <input id="researchMode" type="checkbox" />
+                    <span>Enable Research Mode</span>
+                  </label>
+                  <div class="hint">Unlocks extended exports and event logs. Nothing leaves the browser unless you download it.</div>
+                </div>
               </div>
-              <div id="smokeStatus" class="muted small">Enable the consent checkbox above to unlock this testing pass.</div>
-            </div>
+            </section>
 
-            <div class="settingCard labCard">
-              <label class="lbl">QA test lab</label>
-              <div class="hint">Local gated section browser for QA and item review. This is a convenience gate, not a real security boundary.</div>
-              <input id="labPassword" class="textInput" type="password" placeholder="Enter lab access code" />
-              <div class="row">
-                <button id="btnLabUnlock" class="btn">Unlock lab</button>
-                <button id="btnLabOpen" class="btn secondaryStart" disabled>Open test lab</button>
+            <section class="advancedSection">
+              <div class="advancedSectionHeader">
+                <div class="advancedSectionEyebrow">Calibration</div>
+                <h3>Packs and smoke runs</h3>
               </div>
-              <div id="labGateStatus" class="muted small">Locked. Use the local access code to enable the section browser.</div>
-            </div>
+              <div class="advancedGrid advancedGridSingle">
+                <div class="settingCard normCard">
+                  <label for="normFile" class="lbl">Norm pack</label>
+                  <input id="normFile" class="file" type="file" accept="application/json" />
+                  <div class="row">
+                    <button id="btnLoadNorm" class="btn">Load norm pack</button>
+                    <button id="btnClearNorm" class="btn">Clear custom norm pack</button>
+                  </div>
+                  <div id="normStatus" class="muted small"></div>
+                </div>
 
-            <div class="settingCard localCard">
-              <label class="lbl">Local data</label>
-              <div class="hint">History stays in this browser unless you clear it.</div>
-              <div class="row">
-                <button id="btnReset" class="btn ghostBtn">Reset local history</button>
+                <div class="settingCard smokeCard">
+                  <label class="lbl">Testing pass</label>
+                  <div class="hint">Very short run that touches each section so you can QA the flow quickly.</div>
+                  <div class="row">
+                    <button id="btnSmoke" class="btn smokeBtn" disabled title="Check the non-clinical consent box above to enable this.">Run super short test</button>
+                  </div>
+                  <div id="smokeStatus" class="muted small">Enable the consent checkbox above to unlock this testing pass.</div>
+                </div>
               </div>
-            </div>
+            </section>
+
+            <section class="advancedSection">
+              <div class="advancedSectionHeader">
+                <div class="advancedSectionEyebrow">Utilities</div>
+                <h3>QA and local data</h3>
+              </div>
+              <div class="advancedGrid advancedGridSingle">
+                <div class="settingCard labCard">
+                  <label class="lbl">QA test lab</label>
+                  <div class="hint">Local gated section browser for QA and item review. This is a convenience gate, not a real security boundary.</div>
+                  <input id="labPassword" class="textInput" type="password" placeholder="Enter lab access code" />
+                  <div class="row">
+                    <button id="btnLabUnlock" class="btn">Unlock lab</button>
+                    <button id="btnLabOpen" class="btn secondaryStart" disabled>Open test lab</button>
+                  </div>
+                  <div id="labGateStatus" class="muted small">Locked. Use the local access code to enable the section browser.</div>
+                </div>
+
+                <div class="settingCard localCard">
+                  <label class="lbl">Local data</label>
+                  <div class="hint">History stays in this browser unless you clear it.</div>
+                  <div class="row">
+                    <button id="btnReset" class="btn ghostBtn">Reset local history</button>
+                  </div>
+                </div>
+              </div>
+            </section>
           </div>
         </details>
       </div>
@@ -127,13 +184,14 @@
         </div>
       </div>
 
-      <div class="qwrap">
+      <div class="qwrap questionShell">
+        <div id="testInstructions" class="instructionBanner">Read the section instructions before answering.</div>
         <h2 id="qTitle">-</h2>
         <p id="qPrompt" class="prompt">-</p>
         <div id="stimulus" class="stimulus"></div>
         <div id="answerArea"></div>
 
-        <div class="row space">
+        <div class="row space testActionBar">
           <button id="btnBack" class="btn">Back</button>
           <button id="btnNext" class="btn primary">Next</button>
           <button id="btnPause" class="btn quitBtn">Quit test</button>
@@ -188,13 +246,14 @@
       <div id="labSummary" class="labSummary"></div>
       <div id="labItemMeta" class="labItemMeta"></div>
 
-      <div class="qwrap labQwrap">
+      <div class="qwrap labQwrap questionShell">
+        <div id="labInstructions" class="instructionBanner">Section instructions will appear here.</div>
         <h2 id="labTitle">Select a section in the lab.</h2>
         <p id="labPrompt" class="prompt">The lab lets you inspect and answer a few items from any section without running the public test flow.</p>
         <div id="labStimulus" class="stimulus hidden"></div>
         <div id="labAnswerArea"></div>
 
-        <div class="row space">
+        <div class="row space testActionBar">
           <button id="btnLabPrev" class="btn" disabled>Previous item</button>
           <button id="btnLabSubmit" class="btn primary" disabled>Submit answer</button>
           <button id="btnLabNext" class="btn" disabled>Next item</button>
@@ -205,11 +264,17 @@
       </div>
     </section>
 
-    <section id="screen-results" class="card hidden">
-      <h2>Results</h2>
+    <section id="screen-results" class="card hidden resultsShell">
+      <div class="sectionHeader">
+        <div>
+          <div class="sectionEyebrow">Assessment summary</div>
+          <h2>Results</h2>
+          <p class="sectionLead">Score summary, administration detail, and exports for this run.</p>
+        </div>
+      </div>
       <div id="resultsSummary" class="results"></div>
 
-      <div class="row">
+      <div class="row resultsActions">
         <button id="btnDownloadJson" class="btn primary">Download run (JSON)</button>
         <button id="btnDownloadCsv" class="btn">Download item log (CSV)</button>
         <button id="btnDownloadLongCsv" class="btn research-only hidden">Download long CSV (research)</button>
